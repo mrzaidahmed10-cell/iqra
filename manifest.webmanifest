@@ -1,0 +1,10 @@
+{
+  "name": "Iqra — Learn the Quran",
+  "short_name": "Iqra",
+  "description": "Learn the Quran like a game.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#06130f",
+  "theme_color": "#06130f",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}
