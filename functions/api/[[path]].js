@@ -179,18 +179,34 @@ async function coach(request, env) {
     words: Array.isArray(b.words) && b.words.length <= 250 ? b.words.map((w, i) => `${i}:${String(w).slice(0, 40)}`) : undefined,
     candidates: b.candidates.slice(0, 120).map(c => ({ i: c.i, expected: String(c.expected || '').slice(0, 40), heard: c.heard ? String(c.heard).slice(0, 40) : null, near: Array.isArray(c.near) ? c.near.slice(0, 4) : undefined, sim: c.sim })),
   };
-  const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST', headers: { Authorization: 'Bearer ' + env.GROQ_API_KEY, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model: env.GROQ_CHAT_MODEL || 'llama-3.3-70b-versatile', temperature: 0, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: COACH_SYSTEM }, { role: 'user', content: JSON.stringify(payload) }] }),
-  });
-  if (!r.ok) return J({ error: 'Coach unavailable' }, 502);
-  let out; try { out = JSON.parse((await r.json()).choices[0].message.content); } catch { return J({ error: 'Coach returned an unreadable answer' }, 502); }
+  const g2 = await groqChat(env, { temperature: 0, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: COACH_SYSTEM }, { role: 'user', content: JSON.stringify(payload) }] });
+  if (!g2.ok) return J({ error: 'Coach unavailable (' + g2.why + ')' }, 502);
+  let out; try { out = JSON.parse(g2.text.replace(/^```json|```$/g, '')); } catch { return J({ error: 'Coach returned an unreadable answer' }, 502); }
   const str = (s, n = 200) => String(s ?? '').slice(0, n);
   return J({
     verdicts: (Array.isArray(out.verdicts) ? out.verdicts : []).filter(v => Number.isInteger(v.i)).map(v => ({ i: v.i, real: v.real === true, type: ['wrong', 'missing', 'pronunciation'].includes(v.type) ? v.type : 'pronunciation', issue: str(v.issue), tip: str(v.tip) })),
     tajweed_watch: (Array.isArray(out.tajweed_watch) ? out.tajweed_watch : []).filter(v => Number.isInteger(v.i)).slice(0, 6).map(v => ({ i: v.i, rule: str(v.rule, 80), tip: str(v.tip) })),
     summary: str(out.summary, 300), strengths: str(out.strengths, 300),
   });
+}
+
+
+// Try chat models in order; return { ok, data } or { ok:false, why }.
+async function groqChat(env, body) {
+  const models = [...new Set([env.GROQ_CHAT_MODEL, 'llama-3.3-70b-versatile', 'openai/gpt-oss-120b', 'openai/gpt-oss-20b', 'llama-3.1-8b-instant'].filter(Boolean))];
+  const errs = [];
+  for (const model of models) {
+    const b = { ...body, model };
+    if (model.startsWith('openai/gpt-oss')) { b.reasoning_effort = 'low'; if (b.max_tokens) { b.max_completion_tokens = b.max_tokens * 3; delete b.max_tokens; } }
+    let r;
+    try { r = await fetch('https://api.groq.com/openai/v1/chat/completions', { method: 'POST', headers: { Authorization: 'Bearer ' + env.GROQ_API_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify(b) }); }
+    catch (e) { errs.push(model + ' network'); continue; }
+    if (r.ok) { try { const d = await r.json(); const t = d.choices[0].message.content; if (t) return { ok: true, text: String(t) }; errs.push(model + ' empty'); } catch { errs.push(model + ' bad json'); } continue; }
+    let m = ''; try { m = ((await r.json()).error || {}).message || ''; } catch { /* ignore */ }
+    errs.push(`${model} ${r.status}${m ? ' ' + m.slice(0, 70) : ''}`);
+    if (r.status === 401) break;
+  }
+  return { ok: false, why: errs.join(' | ').slice(0, 400) };
 }
 
 const NUR_SYSTEM = `You are Nur, a warm, patient Quran teacher inside a learning app called Iqra.
@@ -206,21 +222,8 @@ async function nur(request, env) {
   if (!msgs.length || msgs[msgs.length - 1].role !== 'user') return J({ error: 'Bad request' }, 400);
   const c = b.context && typeof b.context === 'object' ? b.context : {};
   const ctx = JSON.stringify({ name: String(c.name || '').slice(0, 40), level: String(c.level || '').slice(0, 20), plan: String(c.track || '').slice(0, 30), appLevel: +c.appLevel || 1, ayahsLearned: +c.ayahsLearned || 0, surahsMastered: +c.surahsMastered || 0, lessonsDone: +c.lessonsDone || 0, looking_at: String(c.extra || '').slice(0, 400) });
-  const models = [...new Set([env.GROQ_CHAT_MODEL, 'llama-3.3-70b-versatile', 'llama-3.1-8b-instant'].filter(Boolean))];
-  let r, why = '';
-  for (const model of models) {
-    try {
-      r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST', headers: { Authorization: 'Bearer ' + env.GROQ_API_KEY, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model, temperature: 0.5, max_tokens: 500, messages: [{ role: 'system', content: NUR_SYSTEM + '\nStudent context: ' + ctx }, ...msgs] }),
-      });
-    } catch (e) { r = null; why = 'network: ' + (e && e.message); continue; }
-    if (r.ok) break;
-    try { why = `${model} ${r.status}: ` + ((await r.json()).error || {}).message; } catch { why = `${model} ${r.status}`; }
-    if (r.status === 401 || r.status === 403) break;
-  }
-  if (!r || !r.ok) return J({ error: (r && r.status === 429 ? 'Nur is busy right now. Try again in a moment.' : 'Nur is unavailable right now.') + ' (' + String(why).slice(0, 160) + ')' }, 502);
-  let reply = ''; try { reply = String((await r.json()).choices[0].message.content || '').trim(); } catch { /* fallthrough */ }
-  if (!reply) return J({ error: 'Nur had trouble answering. Try rephrasing.' }, 502);
+  const g2 = await groqChat(env, { temperature: 0.5, max_tokens: 500, messages: [{ role: 'system', content: NUR_SYSTEM + '\nStudent context: ' + ctx }, ...msgs] });
+  if (!g2.ok) return J({ error: 'Nur is unavailable right now. (' + g2.why + ')' }, 502);
+  const reply = g2.text.trim();
   return J({ reply: reply.slice(0, 2500) });
 }
