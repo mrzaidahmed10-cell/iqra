@@ -1,43 +1,87 @@
-// Static content: alphabet, hadith, advice, shop, etc.
+// Static content: themes, letters, tracks, hadith, advice.
 
-// Recommended learning path: Al-Fatiha, then Juz Amma backwards (short -> long), then favourites.
+export const TITLES = ['Seeker', 'Reader', 'Listener', 'Memorizer', 'Reciter', 'Guardian', 'Student of Light', 'Scholar', 'Luminary', 'Noor'];
+
+// Surahs taught in each track, in order. Short surahs first, so every lesson stays small.
+export const FOUNDATION_SURAHS = [1, 112, 114, 113, 108, 103, 110, 109, 107, 111, 105, 106, 102, 101, 100];
 export const PATH = [1, ...Array.from({ length: 37 }, (_, i) => 114 - i), 67, 36, 55, 56, 18, 32, 2];
 
-export const TITLES = ['Seeker', 'Reader', 'Listener', 'Memorizer', 'Reciter', 'Guardian', 'Hafiz-in-Training', 'Scholar', 'Luminary', 'Noor'];
-
-// c = letter, n = name, h = sound hint, j = joins to the next letter
-export const LETTERS = [
-  { c: 'ا', n: 'Alif', h: 'Long "a"; carries a hamza', j: 0 },
-  { c: 'ب', n: 'Ba', h: '"b" as in bat', j: 1 },
-  { c: 'ت', n: 'Ta', h: '"t" as in tea', j: 1 },
-  { c: 'ث', n: 'Tha', h: '"th" as in think', j: 1 },
-  { c: 'ج', n: 'Jeem', h: '"j" as in jam', j: 1 },
-  { c: 'ح', n: 'Haa', h: 'Breathy "h" from the throat', j: 1 },
-  { c: 'خ', n: 'Khaa', h: 'Like "ch" in Scottish loch', j: 1 },
-  { c: 'د', n: 'Dal', h: '"d" as in dog', j: 0 },
-  { c: 'ذ', n: 'Dhal', h: '"th" as in this', j: 0 },
-  { c: 'ر', n: 'Ra', h: 'Rolled "r"', j: 0 },
-  { c: 'ز', n: 'Zay', h: '"z" as in zoo', j: 0 },
-  { c: 'س', n: 'Seen', h: '"s" as in sun', j: 1 },
-  { c: 'ش', n: 'Sheen', h: '"sh" as in ship', j: 1 },
-  { c: 'ص', n: 'Saad', h: 'Heavy "s"', j: 1 },
-  { c: 'ض', n: 'Daad', h: 'Heavy "d"', j: 1 },
-  { c: 'ط', n: 'Taa', h: 'Heavy "t"', j: 1 },
-  { c: 'ظ', n: 'Zaa', h: 'Heavy "dh"', j: 1 },
-  { c: 'ع', n: 'Ain', h: 'Deep throat sound', j: 1 },
-  { c: 'غ', n: 'Ghain', h: 'Gargled "r", like French', j: 1 },
-  { c: 'ف', n: 'Fa', h: '"f" as in fun', j: 1 },
-  { c: 'ق', n: 'Qaf', h: 'Deep "k" from the back of the throat', j: 1 },
-  { c: 'ك', n: 'Kaf', h: '"k" as in kite', j: 1 },
-  { c: 'ل', n: 'Lam', h: '"l" as in lamp', j: 1 },
-  { c: 'م', n: 'Meem', h: '"m" as in moon', j: 1 },
-  { c: 'ن', n: 'Noon', h: '"n" as in nose', j: 1 },
-  { c: 'ه', n: 'Ha', h: '"h" as in hat', j: 1 },
-  { c: 'و', n: 'Waw', h: '"w" as in water, or long "oo"', j: 0 },
-  { c: 'ي', n: 'Ya', h: '"y" as in yes, or long "ee"', j: 1 },
+// h = hue. Everything in the UI is derived from this one number.
+export const THEMES = [
+  { id: 'lapis', name: 'Lapis', h: 228, cost: 0, lvl: 1 },
+  { id: 'malachite', name: 'Malachite', h: 162, cost: 120, lvl: 2 },
+  { id: 'madder', name: 'Madder', h: 346, cost: 220, lvl: 4 },
+  { id: 'saffron', name: 'Saffron', h: 38, cost: 320, lvl: 6 },
+  { id: 'amethyst', name: 'Amethyst', h: 272, cost: 480, lvl: 9 },
 ];
 
-export const FALLBACK_WORDS = ['ٱللَّهِ', 'رَبِّ', 'ٱلْعَـٰلَمِينَ', 'ٱلَّذِينَ', 'ءَامَنُوا۟', 'يَوْمِ', 'ٱلدِّينِ', 'عَلَيْهِمْ', 'ٱلْأَرْضِ', 'ٱلسَّمَـٰوَٰتِ'];
+// Avatars are icon names from icons.js
+export const AVATARS = [
+  { id: 'moon', cost: 0, lvl: 1 }, { id: 'star', cost: 40, lvl: 2 }, { id: 'book', cost: 80, lvl: 2 },
+  { id: 'dome', cost: 100, lvl: 3 }, { id: 'leaf', cost: 120, lvl: 4 }, { id: 'feather', cost: 150, lvl: 5 },
+  { id: 'compass', cost: 200, lvl: 6 }, { id: 'sunrise', cost: 260, lvl: 8 }, { id: 'mountain', cost: 300, lvl: 10 },
+  { id: 'cube', cost: 450, lvl: 12 }, { id: 'gem', cost: 700, lvl: 15 }, { id: 'crown', cost: 1200, lvl: 20 },
+];
+
+export const FAST_TYPES = [
+  { id: 'ramadan', l: 'Ramadan', i: 'moon' },
+  { id: 'monthu', l: 'Monday / Thursday', i: 'calendar' },
+  { id: 'white', l: 'White days (13–15)', i: 'circle' },
+  { id: 'arafah', l: 'Day of Arafah', i: 'mountain' },
+  { id: 'ashura', l: 'Ashura', i: 'feather' },
+  { id: 'shawwal', l: 'Six of Shawwal', i: 'sparkle' },
+  { id: 'qada', l: 'Make-up (qada)', i: 'repeat' },
+  { id: 'nafl', l: 'Voluntary', i: 'heart' },
+];
+
+export const LEVELS = [
+  { id: 'new', t: 'Brand new', d: "I don't know the Arabic letters yet", icon: 'leaf', track: 'foundations' },
+  { id: 'letters', t: 'I know the letters', d: 'I can recognise them but not read words', icon: 'type', track: 'reading' },
+  { id: 'slow', t: 'I read slowly', d: 'I can read, and want better tajweed', icon: 'book', track: 'tajweed' },
+  { id: 'fluent', t: 'I read fluently', d: 'I want to memorise and perfect it', icon: 'crown', track: 'hifz' },
+];
+export const TRACKS = {
+  foundations: { n: 'Foundations', d: 'Letters, vowels, then your first short surahs', icon: 'leaf' },
+  reading: { n: 'Reading', d: 'Vowels, joining, then real Quran words', icon: 'type' },
+  tajweed: { n: 'Tajweed', d: 'The rules of recitation, with memorisation', icon: 'book' },
+  hifz: { n: 'Memorise', d: 'Learn, revise and recite whole surahs', icon: 'crown' },
+};
+
+// c letter, n name, h sound hint, s short sound, d how to spot it, j joins to the next letter
+export const LETTERS = [
+  { c: 'ا', n: 'Alif', h: 'A long "aa". It never joins forward.', s: 'long "aa"', d: 'a plain vertical line, no dots', j: 0 },
+  { c: 'ب', n: 'Ba', h: '"b" as in bat', s: '"b"', d: 'one dot below', j: 1 },
+  { c: 'ت', n: 'Ta', h: '"t" as in tea', s: '"t"', d: 'two dots above', j: 1 },
+  { c: 'ث', n: 'Tha', h: '"th" as in think', s: '"th" (think)', d: 'three dots above', j: 1 },
+  { c: 'ج', n: 'Jeem', h: '"j" as in jam', s: '"j"', d: 'one dot inside the curve', j: 1 },
+  { c: 'ح', n: 'Haa', h: 'A breathy "h" from the middle of the throat', s: 'breathy "h"', d: 'no dots, like Jeem without the dot', j: 1 },
+  { c: 'خ', n: 'Khaa', h: 'Like "ch" in Scottish loch', s: '"kh" (loch)', d: 'one dot above', j: 1 },
+  { c: 'د', n: 'Dal', h: '"d" as in dog', s: '"d"', d: 'no dots, a small hook', j: 0 },
+  { c: 'ذ', n: 'Dhal', h: '"th" as in this', s: '"th" (this)', d: 'one dot above', j: 0 },
+  { c: 'ر', n: 'Ra', h: 'A rolled "r"', s: 'rolled "r"', d: 'no dots, dips below the line', j: 0 },
+  { c: 'ز', n: 'Zay', h: '"z" as in zoo', s: '"z"', d: 'one dot above', j: 0 },
+  { c: 'س', n: 'Seen', h: '"s" as in sun', s: '"s"', d: 'three teeth, no dots', j: 1 },
+  { c: 'ش', n: 'Sheen', h: '"sh" as in ship', s: '"sh"', d: 'three teeth, three dots above', j: 1 },
+  { c: 'ص', n: 'Saad', h: 'A heavy, full "s"', s: 'heavy "s"', d: 'a round loop, no dots', j: 1 },
+  { c: 'ض', n: 'Daad', h: 'A heavy, full "d"', s: 'heavy "d"', d: 'a round loop, one dot above', j: 1 },
+  { c: 'ط', n: 'Taa', h: 'A heavy, full "t"', s: 'heavy "t"', d: 'a loop with a tall stick, no dots', j: 1 },
+  { c: 'ظ', n: 'Zaa', h: 'A heavy "th" as in this', s: 'heavy "th"', d: 'a loop with a tall stick, one dot', j: 1 },
+  { c: 'ع', n: 'Ain', h: 'A deep sound squeezed from the throat', s: 'deep throat "ʿ"', d: 'no dots, a small head', j: 1 },
+  { c: 'غ', n: 'Ghain', h: 'A gargled sound, like French "r"', s: '"gh" (gargle)', d: 'one dot above Ain', j: 1 },
+  { c: 'ف', n: 'Fa', h: '"f" as in fun', s: '"f"', d: 'one dot above, round head', j: 1 },
+  { c: 'ق', n: 'Qaf', h: 'A deep "k" from the back of the throat', s: 'deep "q"', d: 'two dots above, round head', j: 1 },
+  { c: 'ك', n: 'Kaf', h: '"k" as in kite', s: '"k"', d: 'no dots, a tall stroke with a small mark', j: 1 },
+  { c: 'ل', n: 'Lam', h: '"l" as in lamp', s: '"l"', d: 'a tall stroke with a curved base', j: 1 },
+  { c: 'م', n: 'Meem', h: '"m" as in moon', s: '"m"', d: 'a small round head, no dots', j: 1 },
+  { c: 'ن', n: 'Noon', h: '"n" as in nose', s: '"n"', d: 'a bowl with one dot above', j: 1 },
+  { c: 'ه', n: 'Ha', h: '"h" as in hat', s: '"h"', d: 'a loop-like shape, no dots', j: 1 },
+  { c: 'و', n: 'Waw', h: '"w" as in water, or a long "oo"', s: '"w" / "oo"', d: 'a round head with a tail, no dots', j: 0 },
+  { c: 'ي', n: 'Ya', h: '"y" as in yes, or a long "ee"', s: '"y" / "ee"', d: 'two dots below', j: 1 },
+];
+export const ZWJ = '‍';
+export const formsOf = l => l.j ? [['Alone', l.c], ['Start', l.c + ZWJ], ['Middle', ZWJ + l.c + ZWJ], ['End', ZWJ + l.c]] : [['Alone', l.c], ['End', ZWJ + l.c]];
+
+export const FALLBACK_WORDS = ['ٱللَّهِ', 'رَبِّ', 'ٱلْعَـٰلَمِينَ', 'ٱلَّذِينَ', 'يَوْمِ', 'ٱلدِّينِ', 'عَلَيْهِمْ', 'ٱلْأَرْضِ'];
 
 export const DHIKR = [
   { ar: 'سُبْحَانَ ٱللَّٰهِ', en: 'SubhanAllah', goal: 33 },
@@ -45,32 +89,6 @@ export const DHIKR = [
   { ar: 'ٱللَّٰهُ أَكْبَرُ', en: 'Allahu Akbar', goal: 34 },
   { ar: 'لَا إِلَٰهَ إِلَّا ٱللَّٰهُ', en: 'La ilaha illa Allah', goal: 100 },
   { ar: 'أَسْتَغْفِرُ ٱللَّٰهَ', en: 'Astaghfirullah', goal: 100 },
-];
-
-export const FAST_TYPES = [
-  { id: 'ramadan', l: 'Ramadan', i: '🌙' },
-  { id: 'monthu', l: 'Monday / Thursday', i: '📅' },
-  { id: 'white', l: 'White days (13–15)', i: '⚪' },
-  { id: 'arafah', l: 'Day of Arafah', i: '⛰️' },
-  { id: 'ashura', l: 'Ashura', i: '🕊️' },
-  { id: 'shawwal', l: 'Six of Shawwal', i: '✨' },
-  { id: 'qada', l: 'Make-up (qada)', i: '🔁' },
-  { id: 'nafl', l: 'Voluntary', i: '🤍' },
-];
-
-export const THEMES = [
-  { id: 'emerald', name: 'Emerald', cost: 0, lvl: 1 },
-  { id: 'midnight', name: 'Midnight', cost: 150, lvl: 3 },
-  { id: 'rose', name: 'Rose', cost: 250, lvl: 5 },
-  { id: 'sand', name: 'Golden Sand', cost: 400, lvl: 8 },
-  { id: 'violet', name: 'Twilight', cost: 600, lvl: 12 },
-];
-
-export const AVATARS = [
-  { id: '🌙', cost: 0, lvl: 1 }, { id: '⭐', cost: 50, lvl: 2 }, { id: '📖', cost: 100, lvl: 2 },
-  { id: '🕌', cost: 100, lvl: 3 }, { id: '🌿', cost: 120, lvl: 4 }, { id: '🦋', cost: 150, lvl: 5 },
-  { id: '🦉', cost: 250, lvl: 6 }, { id: '🌅', cost: 300, lvl: 8 }, { id: '🏔️', cost: 300, lvl: 10 },
-  { id: '🕋', cost: 500, lvl: 12 }, { id: '💎', cost: 800, lvl: 15 }, { id: '👑', cost: 1500, lvl: 20 },
 ];
 
 // Well-known hadith, summarised in plain English. Always verify wording against the cited collection.
@@ -94,17 +112,17 @@ export const HADITH = [
 ];
 
 export const ADVICE = [
-  { c: 'Memorizing', i: '🧠', t: 'Same copy, every time', d: 'Use one mushaf (or this app) consistently. Your brain remembers the page layout and position of ayahs.' },
-  { c: 'Memorizing', i: '🔁', t: 'Revise before you add', d: 'Spend the first minutes of every session reviewing yesterday\'s lesson. New memorization without revision leaks away.' },
-  { c: 'Memorizing', i: '👂', t: 'Listen first, then read', d: 'Play the ayah 3–5 times before you try it. Your ear learns the rhythm and tajweed before your tongue has to.' },
-  { c: 'Memorizing', i: '🧩', t: 'Small bites', d: 'Five ayahs done well beats twenty done badly. Stack small wins, then connect them.' },
-  { c: 'Consistency', i: '⏰', t: 'Anchor it to a prayer', d: 'Tie your session to something you already do daily, like right after Fajr or Maghrib.' },
-  { c: 'Consistency', i: '🔥', t: 'Never miss twice', d: 'If you miss a day, do a 2-minute lesson the next day. The streak matters less than the habit.' },
-  { c: 'Consistency', i: '🌙', t: 'Night review', d: 'Recite what you learned just before sleeping. Sleep helps lock memory in.' },
-  { c: 'Tajweed', i: '🎯', t: 'Fix the letters first', d: 'Getting makharij (articulation points) right is the foundation. Practice ص/س, ض/د, ط/ت, ع/ء and ق/ك slowly.' },
-  { c: 'Tajweed', i: '🐢', t: 'Slow is correct', d: 'Recite slowly (tartil) until tajweed becomes automatic, then gradually pick up pace.' },
-  { c: 'Tajweed', i: '👩‍🏫', t: 'Find a teacher', d: 'AI feedback is a helpful coach, but a qualified teacher who can hear the details is irreplaceable. Aim for both.' },
-  { c: 'Heart', i: '💚', t: 'Know what you recite', d: 'Read the translation of each ayah. Meaning makes memorization stick and makes recitation sincere.' },
-  { c: 'Heart', i: '🤲', t: 'Ask for help', d: 'Begin with a short dua for ease and understanding. Sincerity and effort are what count.' },
-  { c: 'Heart', i: '🌱', t: 'Struggle is reward', d: 'If it feels hard, remember the hadith about the reciter who struggles: a double reward.' },
+  { c: 'Memorizing', i: 'layers', t: 'Same copy, every time', d: 'Use one mushaf (or this app) consistently. Your brain remembers the page layout and position of ayahs.' },
+  { c: 'Memorizing', i: 'repeat', t: 'Revise before you add', d: "Spend the first minutes of every session reviewing yesterday's lesson. New memorization without revision leaks away." },
+  { c: 'Memorizing', i: 'headphones', t: 'Listen first, then read', d: 'Play the ayah 3–5 times before you try it. Your ear learns the rhythm and tajweed before your tongue has to.' },
+  { c: 'Memorizing', i: 'cube', t: 'Small bites', d: 'Five ayahs done well beats twenty done badly. Stack small wins, then connect them.' },
+  { c: 'Consistency', i: 'clock', t: 'Anchor it to a prayer', d: 'Tie your session to something you already do daily, like right after Fajr or Maghrib.' },
+  { c: 'Consistency', i: 'flame', t: 'Never miss twice', d: 'If you miss a day, do a 2-minute lesson the next day. The streak matters less than the habit.' },
+  { c: 'Consistency', i: 'moon', t: 'Night review', d: 'Recite what you learned just before sleeping. Sleep helps lock memory in.' },
+  { c: 'Tajweed', i: 'target', t: 'Fix the letters first', d: 'Getting makharij (articulation points) right is the foundation. Practice ص/س, ض/د, ط/ت, ع/ء and ق/ك slowly.' },
+  { c: 'Tajweed', i: 'mountain', t: 'Slow is correct', d: 'Recite slowly (tartil) until tajweed becomes automatic, then gradually pick up pace.' },
+  { c: 'Tajweed', i: 'user', t: 'Find a teacher', d: 'AI feedback is a helpful coach, but a qualified teacher who can hear the details is irreplaceable. Aim for both.' },
+  { c: 'Heart', i: 'heart', t: 'Know what you recite', d: 'Read the translation of each ayah. Meaning makes memorization stick and makes recitation sincere.' },
+  { c: 'Heart', i: 'sparkle', t: 'Ask for help', d: 'Begin with a short dua for ease and understanding. Sincerity and effort are what count.' },
+  { c: 'Heart', i: 'leaf', t: 'Struggle is reward', d: 'If it feels hard, remember the hadith about the reciter who struggles: a double reward.' },
 ];

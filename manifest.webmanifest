@@ -1,10 +1,10 @@
 {
-  "name": "Iqra — Learn the Quran",
+  "name": "Iqra | Learn the Quran",
   "short_name": "Iqra",
-  "description": "Learn the Quran like a game.",
+  "description": "Learn to read, recite and memorise the Quran.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#06130f",
-  "theme_color": "#06130f",
+  "background_color": "#0b0f24",
+  "theme_color": "#0b0f24",
   "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
 }

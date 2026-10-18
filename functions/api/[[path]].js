@@ -49,6 +49,7 @@ export async function onRequest({ request, env, params }) {
     // ---------- AI coach ----------
     if (path === 'transcribe' && m === 'POST') return transcribe(request, env);
     if (path === 'coach' && m === 'POST') return coach(request, env);
+    if (path === 'nur' && m === 'POST') return nur(request, env);
 
     // ---------- accounts ----------
     if (!env.IQRA_KV) return J({ error: 'Cloud sync is not configured (bind a KV namespace named IQRA_KV).' }, 503);
@@ -139,6 +140,7 @@ async function guard(request, env) {
     if (!a) return { res: J({ error: 'Please sign in again.' }, 401) };
     const day = new Date().toISOString().slice(0, 10);
     if (request.url.endsWith('/transcribe') && !(await throttle(env, `r:${a.u}:${day}`, 60, 172800))) return { res: J({ error: 'Daily coach limit reached. Try again tomorrow.' }, 429) };
+    if (request.url.endsWith('/nur') && !(await throttle(env, `n:${a.u}:${day}`, 80, 172800))) return { res: J({ error: 'You have reached the daily chat limit. Nur will be back tomorrow.' }, 429) };
   }
   return {};
 }
@@ -189,4 +191,27 @@ async function coach(request, env) {
     tajweed_watch: (Array.isArray(out.tajweed_watch) ? out.tajweed_watch : []).filter(v => Number.isInteger(v.i)).slice(0, 6).map(v => ({ i: v.i, rule: str(v.rule, 80), tip: str(v.tip) })),
     summary: str(out.summary, 300), strengths: str(out.strengths, 300),
   });
+}
+
+const NUR_SYSTEM = `You are Nur, a warm, patient Quran teacher inside a learning app called Iqra.
+Help with: Arabic letters and reading, tajweed, memorisation technique, the meaning and context of surahs and ayahs the student is learning, and motivation.
+Style: short and conversational (usually under 120 words), plain language, no long lectures. Ask at most one follow-up question. When asked to quiz, ask ONE question at a time and wait for the answer. Write Arabic with full diacritics when you quote it.
+Rules: never invent verses, hadith or attributions; if unsure, say so. Do not give fiqh rulings or fatwas; for those, suggest asking a qualified scholar. Tajweed can only be confirmed by a teacher in person, say so when it matters. Stay on topic: gently steer back if asked about unrelated things.
+You receive a short context object about the student (name, level, progress, what they are looking at). Use it quietly to personalise advice, do not recite it back.`;
+
+async function nur(request, env) {
+  const g = await guard(request, env); if (g.res) return g.res;
+  const b = await readBody(request); if (!b || !Array.isArray(b.messages) || !b.messages.length) return J({ error: 'Bad request' }, 400);
+  const msgs = b.messages.slice(-20).filter(x => x && (x.role === 'user' || x.role === 'assistant')).map(x => ({ role: x.role, content: String(x.content || '').slice(0, 1500) }));
+  if (!msgs.length || msgs[msgs.length - 1].role !== 'user') return J({ error: 'Bad request' }, 400);
+  const c = b.context && typeof b.context === 'object' ? b.context : {};
+  const ctx = JSON.stringify({ name: String(c.name || '').slice(0, 40), level: String(c.level || '').slice(0, 20), plan: String(c.track || '').slice(0, 30), appLevel: +c.appLevel || 1, ayahsLearned: +c.ayahsLearned || 0, surahsMastered: +c.surahsMastered || 0, lessonsDone: +c.lessonsDone || 0, looking_at: String(c.extra || '').slice(0, 400) });
+  const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST', headers: { Authorization: 'Bearer ' + env.GROQ_API_KEY, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model: env.GROQ_CHAT_MODEL || 'llama-3.3-70b-versatile', temperature: 0.5, max_tokens: 500, messages: [{ role: 'system', content: NUR_SYSTEM + '\nStudent context: ' + ctx }, ...msgs] }),
+  });
+  if (!r.ok) return J({ error: r.status === 429 ? 'Nur is busy right now. Try again in a moment.' : 'Nur is unavailable right now.' }, 502);
+  let reply = ''; try { reply = String((await r.json()).choices[0].message.content || '').trim(); } catch { /* fallthrough */ }
+  if (!reply) return J({ error: 'Nur had trouble answering. Try rephrasing.' }, 502);
+  return J({ reply: reply.slice(0, 2500) });
 }

@@ -1,4 +1,4 @@
-# Iqra — learn the Quran like a game
+# Iqra: learn the Quran
 
 A static site + one Cloudflare Pages Function. No build step.
 
@@ -33,13 +33,20 @@ If `kv` is false the app still works, but accounts live only on that device. If 
 
 All 114 surahs (Uthmani text, Sahih International translation, transliteration) come from the free public **alquran.cloud** API, and ayah audio from the **Islamic Network CDN**. Both are fetched in the browser and cached in IndexedDB, so each surah loads once.
 
-## How the game works
+## How it works
 
-- **Lessons:** up to 20 ayahs per lesson (or the rest of the surah, whichever comes first): listen, build the ayah, fill the gap, meaning check, ayah-order challenge. Mistakes get one retry at the end. 1–3 stars from accuracy.
-- **Break time:** after every lesson you unlock the arcade (Memory Match, Bubble Pop, Flappy Crescent). The first 3 rounds a day pay coins.
-- **Levels & prizes:** XP raises your level. Longer surahs unlock at higher levels (turn on *Explorer mode* in Settings to open everything). Coins and levels unlock themes and avatars in the Rewards shop. Badges, daily quests and streaks included.
-- **Mastery:** once a surah is fully learned, recite it. Your recording goes to `/api/transcribe` (Groq Whisper), the app aligns the transcript to the mushaf word by word, and `/api/coach` (Groq LLM) decides which mismatches are real and adds tajweed reminders. Wrong/missing/mispronounced words are highlighted; tap any highlighted word for details. **Zero real errors = Mastery.** Surahs over 30 ayahs are mastered in parts of 20 ayahs. *Hard mode* hides the text.
-- **More tab:** account (sign-in details hidden behind a Show toggle), rewards shop, fasting log with Hijri hints, hadith, learning advice, prayer times (aladhan.com), dhikr counter, Arabic alphabet, settings.
+- **Level and plan:** you pick where you are during setup (brand new, know the letters, read slowly, read fluently) and can change it any time in Account or on Home. That sets your plan: *Foundations* (letters, vowels, joining, first words, short surahs), *Reading*, *Tajweed* (11 rule lessons interleaved with surahs) or *Memorise*. Daily tasks change with the plan. Every lesson stays open in the Library.
+- **Teach first, then test:** each lesson starts with teaching cards (letters, rules) or, for a surah, a word-by-word view with tap-to-hear audio, translation and transliteration. Practice only covers what was just taught: build the ayah (tap or drag words to reorder, Check, retry, reveal after two misses), fill the gap, meaning, listen, ayah order.
+- **Saves your place:** every step is saved, so you can leave mid lesson and resume from Home or the surah page. It syncs with your account.
+- **Recite and get graded:** any surah, any range up to 30 ayahs, from Home, every surah page or the end of a lesson. You get a grade, per-ayah accuracy, highlighted words, a replay of your recording and a hand-off to Nur. Mastery needs a clean recitation of a fully learned surah (surahs over 30 ayahs are mastered in parts of 20).
+- **Nur:** a back-and-forth chat coach (`/api/nur`, Groq) that knows your level and progress. 80 messages per user per day.
+- **Mini player:** a glass capsule that follows you across the app whenever Quran audio plays (pause, play, previous, next, and lock-screen controls).
+- **Navigation:** the glass bar can be dragged. The page only changes when you let go.
+- **Break room:** three calm games (Pairs, Letter pop, Glide). The first 3 rounds a day pay coins.
+- **Levels and prizes:** XP raises your level; longer surahs unlock at higher levels (Explorer mode opens everything). Coins buy accents and avatars. Badges, streaks and quests included.
+- **More tab:** account (sign-in details behind a Show toggle), rewards, fasting log, hadith, advice, prayer times, dhikr, alphabet, settings (light/dark/auto, sounds, haptics, reciter, speed).
+
+Word-by-word data comes from the free quran.com API. If it is unreachable the teach view falls back to plain words.
 
 ## Honest limits of the AI coach
 
@@ -48,7 +55,7 @@ Speech-to-text hears words, not harakat. It can reliably catch skipped, swapped 
 ## Security notes
 
 - Passwords are hashed with PBKDF2-SHA256 (100k iterations, per-user salt); sessions are random tokens in KV (60 days).
-- Login attempts are rate-limited; the coach is limited to 60 recordings per user per day so nobody can burn your Groq quota.
+- Login attempts are rate-limited; the coach is limited to 60 recordings and Nur to 80 messages per user per day so nobody can burn your Groq quota.
 - Your Groq key only ever exists server-side as a secret. It is never sent to the browser.
 - The hadith are plain-English summaries of well-known hadith with their sources. Verify exact wording in the cited collection.
 
