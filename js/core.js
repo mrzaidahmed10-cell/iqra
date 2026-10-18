@@ -1,5 +1,5 @@
 // Core: helpers, state, tracks and quests, sound, audio player, Quran data, accounts and sync.
-import { THEMES, LEVELS } from './content.js';
+import { THEMES, LEVELS, AYAH_COUNTS, LENIENCY } from './content.js';
 import { planOf, allLessonIds, UNITS } from './curriculum.js';
 
 export const TOTAL_AYAHS = 6236;
@@ -31,7 +31,7 @@ const THEME_MAP = { emerald: 'malachite', midnight: 'lapis', rose: 'madder', san
 export const trackFor = level => (LEVELS.find(l => l.id === level) || LEVELS[0]).track;
 export const defaultState = () => ({
   updatedAt: 0, profile: null, track: 'foundations',
-  settings: { translation: true, translit: false, fontSize: 30, reciter: 'ar.alafasy', sound: true, haptics: true, openAll: false, theme: 'lapis', avatar: 'moon', mode: 'auto', rate: 1 },
+  settings: { translation: true, translit: false, fontSize: 30, reciter: 'ar.alafasy', sound: true, haptics: true, openAll: false, theme: 'lapis', avatar: 'moon', mode: 'auto', rate: 1, leniency: 'balanced' },
   xp: 0, coins: 0, streak: 0, bestStreak: 0, lastActive: '', daily: {}, surahs: {}, badges: {}, lessons: {}, session: null, recites: [], nur: [],
   owned: { themes: ['lapis'], avatars: ['moon'] }, fasts: {}, dhikr: { total: 0, idx: 0, count: 0 },
   favs: [], sessions: 0, perfects: 0, gamesPlayed: 0,
@@ -263,7 +263,11 @@ export const feel = (kind, h) => { sfx(kind); haptic(h || kind); };
 document.addEventListener('pointerdown', () => { if (S.settings.sound) audioCtx(); }, { once: true, capture: true });
 
 // ---------- Quran audio player (one queue, survives page changes) ----------
-export const audioUrl = (g, reciter = S.settings.reciter) => `https://cdn.islamic.network/quran/audio/128/${reciter}/${g}.mp3`;
+export function surahAyah(g) { let n = 1, r = g; for (const c of AYAH_COUNTS) { if (r <= c) return [n, r]; r -= c; n++; } return [114, 6]; }
+export const audioUrl = (g, reciter = S.settings.reciter) => {
+  if (reciter && reciter.startsWith('ea:')) { const [s, a] = surahAyah(g), p = x => String(x).padStart(3, '0'); return `https://everyayah.com/data/${reciter.slice(3)}/${p(s)}${p(a)}.mp3`; }
+  return `https://cdn.islamic.network/quran/audio/128/${reciter}/${g}.mp3`;
+};
 export const Player = { q: [], i: -1, playing: false, loading: false };
 let pel = null, pf = null, perr = 0, clip = null, clipDone = null;
 const snap = () => ({ playing: Player.playing, loading: Player.loading, i: Player.i, len: Player.q.length, cur: Player.q[Player.i] || null });

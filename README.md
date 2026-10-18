@@ -62,3 +62,10 @@ Speech-to-text hears words, not harakat. It can reliably catch skipped, swapped 
 ## Local testing
 
 `npx wrangler pages dev . --kv IQRA_KV --binding GROQ_API_KEY=your_key` runs the site and the function together. Opening `index.html` directly also works in "this device only" mode (microphone needs HTTPS or localhost).
+
+## Public-launch notes
+
+- `privacy.html` and `terms.html` are static pages (linked from signup and More). Edit the contact line (currently the GitHub issues page) and the governing-law clause before a wide launch, and have them reviewed if you collect more data than described.
+- Signup requires age 13+ and consent. Recordings are forwarded to Groq for transcription and are not stored by Iqra; Nur chats are stored inside the user's synced progress.
+- Coach strictness (Gentle, Balanced, Strict) comes from the placement quiz and can be changed in Settings.
+- Reciters: Alafasy, Husary, Minshawi, Abdul Basit (alquran.cloud) and Yasser Ad-Dosary (everyayah.com, `ea:` ids).

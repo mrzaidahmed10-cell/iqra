@@ -155,11 +155,15 @@ async function transcribe(request, env) {
   const fd = new FormData();
   fd.append('file', audio, audio.name || 'rec.webm');
   fd.append('model', env.GROQ_STT_MODEL || 'whisper-large-v3');
-  fd.append('language', 'ar'); fd.append('response_format', 'json'); fd.append('temperature', '0');
-  const r = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', { method: 'POST', headers: { Authorization: 'Bearer ' + env.GROQ_API_KEY }, body: fd });
+  fd.append('language', 'ar'); fd.append('temperature', '0');
+  const send = async (f, extra) => { const x = new FormData(); for (const [k, v] of f.entries()) x.append(k, v); for (const [k, v] of extra) x.append(k, v); return fetch('https://api.groq.com/openai/v1/audio/transcriptions', { method: 'POST', headers: { Authorization: 'Bearer ' + env.GROQ_API_KEY }, body: x }); };
+  // Ask for word timestamps (used for the word-by-word replay); fall back to plain text if the model refuses.
+  let r = await send(fd, [['response_format', 'verbose_json'], ['timestamp_granularities[]', 'word']]);
+  if (!r.ok && r.status !== 429) r = await send(fd, [['response_format', 'json']]);
   if (!r.ok) return J({ error: r.status === 429 ? 'The AI is busy right now. Wait a moment and retry.' : 'Transcription failed. Please try again.' }, 502);
   const j = await r.json();
-  return J({ text: String(j.text || '') });
+  const words = Array.isArray(j.words) ? j.words.slice(0, 1500).map(w => ({ w: String(w.word || '').trim(), s: +w.start || 0, e: +w.end || 0 })) : [];
+  return J({ text: String(j.text || ''), words });
 }
 
 const COACH_SYSTEM = `You are a gentle, precise Quran recitation coach (tajweed teacher).
@@ -179,7 +183,8 @@ async function coach(request, env) {
     words: Array.isArray(b.words) && b.words.length <= 250 ? b.words.map((w, i) => `${i}:${String(w).slice(0, 40)}`) : undefined,
     candidates: b.candidates.slice(0, 120).map(c => ({ i: c.i, expected: String(c.expected || '').slice(0, 40), heard: c.heard ? String(c.heard).slice(0, 40) : null, near: Array.isArray(c.near) ? c.near.slice(0, 4) : undefined, sim: c.sim })),
   };
-  const g2 = await groqChat(env, { temperature: 0, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: COACH_SYSTEM }, { role: 'user', content: JSON.stringify(payload) }] });
+  const lenient = { gentle: 'The student is a beginner. Be generous and encouraging. Mark real=true only for clearly wrong or skipped words; treat accent, small vowel slips and unclear articulation as NOT real. List at most 2 tajweed reminders.', strict: 'The student is advanced and wants exacting feedback. Flag clear letter substitutions, dropped or added letters and likely makhraj problems as real, and list up to 6 tajweed reminders.' }[b.leniency] || 'The student is intermediate. Be fair: mark clear word errors and clear letter substitutions as real, ignore transcription noise.';
+  const g2 = await groqChat(env, { temperature: 0, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: COACH_SYSTEM + '\nStrictness: ' + lenient }, { role: 'user', content: JSON.stringify(payload) }] });
   if (!g2.ok) return J({ error: 'Coach unavailable (' + g2.why + ')' }, 502);
   let out; try { out = JSON.parse(g2.text.replace(/^```json|```$/g, '')); } catch { return J({ error: 'Coach returned an unreadable answer' }, 502); }
   const str = (s, n = 200) => String(s ?? '').slice(0, n);
@@ -209,11 +214,13 @@ async function groqChat(env, body) {
   return { ok: false, why: errs.join(' | ').slice(0, 400) };
 }
 
-const NUR_SYSTEM = `You are Nur, a warm, patient Quran teacher inside a learning app called Iqra.
-Help with: Arabic letters and reading, tajweed, memorisation technique, the meaning and context of surahs and ayahs the student is learning, and motivation.
-Style: short and conversational (usually under 120 words), plain language, no long lectures. Ask at most one follow-up question. When asked to quiz, ask ONE question at a time and wait for the answer. Write Arabic with full diacritics when you quote it.
-Rules: never invent verses, hadith or attributions; if unsure, say so. Do not give fiqh rulings or fatwas; for those, suggest asking a qualified scholar. Tajweed can only be confirmed by a teacher in person, say so when it matters. Stay on topic: gently steer back if asked about unrelated things.
-You receive a short context object about the student (name, level, progress, what they are looking at). Use it quietly to personalise advice, do not recite it back.`;
+const NUR_SYSTEM = `You are Nur, a warm, knowledgeable Quran and Islam teacher inside a learning app called Iqra.
+You help with Arabic letters and reading, tajweed, memorisation technique, tafsir and the context of surahs and ayahs, and also general Islamic questions: beliefs, worship (prayer, fasting, zakat, Hajj), ethics, the life of the Prophet, history, and everyday practice.
+Answer Islamic questions directly and helpfully. Do not refuse because you are not a scholar. Give the mainstream, well-established answer first. Where scholars genuinely differ (for example between the four Sunni madhhabs), say so briefly and fairly instead of picking a side. Name sources (a surah and ayah, a hadith collection) only when you are confident of them. Never invent verses, hadith, rulings or attributions; if you are unsure, say so plainly.
+For a very personal or high-stakes situation (divorce, inheritance, a complex financial contract, a medical-religious dilemma) still give the general principles, then suggest asking a qualified scholar who can hear the full situation.
+Style: short and conversational (usually under 150 words), plain language, no lectures. Ask at most one follow-up question. When asked to quiz, ask ONE question at a time. Write Arabic with full diacritics when you quote it. Stay respectful of all schools; no sectarian attacks. If the question is unrelated to Islam or learning, steer back gently.
+You receive a short context object about the student (name, level, progress, what they are looking at). Use it quietly, do not recite it back.
+If your answer involves an Islamic ruling, belief, interpretation or religious guidance (not just letters, tajweed or study technique), end your reply with the exact token [[D]] on its own last line. Otherwise do not write it.`;
 
 async function nur(request, env) {
   const g = await guard(request, env); if (g.res) return g.res;
@@ -224,6 +231,6 @@ async function nur(request, env) {
   const ctx = JSON.stringify({ name: String(c.name || '').slice(0, 40), level: String(c.level || '').slice(0, 20), plan: String(c.track || '').slice(0, 30), appLevel: +c.appLevel || 1, ayahsLearned: +c.ayahsLearned || 0, surahsMastered: +c.surahsMastered || 0, lessonsDone: +c.lessonsDone || 0, looking_at: String(c.extra || '').slice(0, 400) });
   const g2 = await groqChat(env, { temperature: 0.5, max_tokens: 500, messages: [{ role: 'system', content: NUR_SYSTEM + '\nStudent context: ' + ctx }, ...msgs] });
   if (!g2.ok) return J({ error: 'Nur is unavailable right now. (' + g2.why + ')' }, 502);
-  const reply = g2.text.trim();
-  return J({ reply: reply.slice(0, 2500) });
+  let reply = g2.text.trim(); const disclaimer = /\[\[D\]\]\s*$/.test(reply); reply = reply.replace(/\s*\[\[D\]\]\s*/g, '').trim();
+  return J({ reply: reply.slice(0, 2500), disclaimer });
 }

@@ -13,6 +13,7 @@ import { openNur } from './nur.js';
 import { openArcade } from './games.js';
 import { back, ring, val, title, getErr, timers, clearTimers, refresh, lrow } from './ui.js';
 import * as P from './pages.js';
+import { runPlacement } from './placement.js';
 
 let surahList = [], rtok = 0, qFilter = 'all', qSearch = '', chartMetric = 'xp';
 const app = $('#app');
@@ -30,29 +31,32 @@ document.addEventListener('dragstart', e => e.preventDefault());
 // =====================================================================
 // Auth and onboarding
 // =====================================================================
-let step = 'welcome', draft = { gender: '', level: '', goalMin: 10 };
+let step = 'welcome', draft = { gender: '', level: '', goalMin: 10, leniency: '', placed: null };
 const logo = `<svg class="logo" viewBox="0 0 64 64" aria-label="Iqra"><path d="M14 58V30C14 18 24 11 32 4c8 7 18 14 18 26v28" fill="none" stroke="var(--gold)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/><text x="32" y="46" text-anchor="middle" class="a-ar" font-size="22" fill="var(--ink)">اقرأ</text></svg>`;
 const pickRow = (key, opts) => `<div class="chips-row">${opts.map(o => `<button class="pick ${draft[key] === o[0] ? 'on' : ''}" data-act="a-pick" data-k="${key}" data-v="${esc(o[0])}">${esc(o[1])}</button>`).join('')}</div>`;
 const AUTH = {
   welcome: () => `${logo}<h1 class="hero-t">Iqra</h1><p class="lead">Learn to read, recite and memorise the Quran with lessons that adapt to you.</p>
     <div class="col-gap"><button class="btn primary big" data-act="a-go" data-s="s1">Get started</button><button class="btn" data-act="a-go" data-s="login">I already have an account</button></div>
-    ${Auth.remote ? '' : '<p class="muted small center">Cloud sync is not connected, so your account will live on this device.</p>'}`,
+    ${Auth.remote ? '' : '<p class="muted small center">Cloud sync is not connected, so your account will live on this device.</p>'}
+    <p class="muted small center legal-links"><a href="privacy.html" target="_blank" rel="noopener">Privacy Policy</a> · <a href="terms.html" target="_blank" rel="noopener">Terms of Use</a></p>`,
   login: () => `<h2>Welcome back</h2><label>Username or email<input id="l-id" autocomplete="username" autocapitalize="none"></label><label>Password<input id="l-pw" type="password" autocomplete="current-password"></label><p class="err" id="err"></p>
     <div class="col-gap"><button class="btn primary big" data-act="a-login">Sign in</button><button class="btn ghost" data-act="a-go" data-s="welcome">Back</button></div>`,
   s1: () => `<div class="dots"><i class="on"></i><i></i><i></i></div><h2>Let's get to know you</h2><label>Your name<input id="p-name" value="${esc(draft.name || '')}" autocomplete="given-name"></label>
     <label>Age<input id="p-age" type="number" inputmode="numeric" min="5" max="110" value="${esc(draft.age || '')}"></label><label>Gender</label>${pickRow('gender', [['male', 'Male'], ['female', 'Female'], ['na', 'Prefer not to say']])}<p class="err" id="err"></p>
     <div class="col-gap"><button class="btn primary big" data-act="a-next1">Next</button><button class="btn ghost" data-act="a-go" data-s="welcome">Back</button></div>`,
-  s2: () => `<div class="dots"><i class="on"></i><i class="on"></i><i></i></div><h2>Where are you now?</h2><p class="muted">Be honest, this shapes your lessons and daily tasks. You can change it later.</p>
-    <div class="levels">${LEVELS.map(l => `<button class="lv ${draft.level === l.id ? 'on' : ''}" data-act="a-level" data-l="${l.id}"><span class="ico">${ic(l.icon, 22)}</span><div><b>${l.t}</b><small>${l.d}</small></div>${draft.level === l.id ? ic('check', 20) : ''}</button>`).join('')}</div>
+  s2: () => `<div class="dots"><i class="on"></i><i class="on"></i><i></i></div><h2>Where are you now?</h2><p class="muted">This shapes your lessons, daily tasks and how strict your recitation coach is. You can change it any time.</p>
+    <button class="lv plc-card" data-act="a-placement"><span class="ico">${ic('compass', 22)}</span><div><b>${draft.placed ? 'Retake the placement quiz' : 'Take the placement quiz'}</b><small>${draft.placed ? 'Result saved. Tap to redo it.' : 'Recommended. An in-depth check of your Arabic, about 5 minutes.'}</small></div>${ic('chevR', 18)}</button>
+    <p class="muted small center">or choose yourself</p><div class="levels">${LEVELS.map(l => `<button class="lv ${draft.level === l.id ? 'on' : ''}" data-act="a-level" data-l="${l.id}"><span class="ico">${ic(l.icon, 22)}</span><div><b>${l.t}</b><small>${l.d}</small></div>${draft.level === l.id ? ic('check', 20) : ''}</button>`).join('')}</div>
     <label>Daily goal</label>${pickRow('goalMin', [[5, '5 min'], [10, '10 min'], [20, '20 min'], [30, '30 min']])}<p class="err" id="err"></p>
     <div class="col-gap"><button class="btn primary big" data-act="a-next2">Next</button><button class="btn ghost" data-act="a-go" data-s="s1">Back</button></div>`,
   s3: () => `<div class="dots"><i class="on"></i><i class="on"></i><i class="on"></i></div><h2>Create your account</h2><p class="muted">So your progress follows you on every device.</p>
     <label>Username<input id="r-user" autocomplete="username" autocapitalize="none" placeholder="letters, numbers, _"></label><label>Email<input id="r-email" type="email" autocomplete="email"></label>
-    <label>Password<input id="r-pw" type="password" autocomplete="new-password" placeholder="8+ characters"></label><p class="err" id="err"></p>
+    <label>Password<input id="r-pw" type="password" autocomplete="new-password" placeholder="8+ characters"></label>
+    <label class="check-row"><input type="checkbox" id="r-agree"><span>I am 13 or older and agree to the <a href="terms.html" target="_blank" rel="noopener">Terms of Use</a> and <a href="privacy.html" target="_blank" rel="noopener">Privacy Policy</a>. Recordings and chats are processed by an AI provider to give feedback.</span></label><p class="err" id="err"></p>
     <div class="col-gap"><button class="btn primary big" data-act="a-create">Create account</button><button class="btn ghost" data-act="a-go" data-s="s2">Back</button></div>`,
 };
 function renderAuth() { document.body.classList.add('authing'); app.innerHTML = `<div class="auth"><div class="auth-card enter">${AUTH[step]()}</div></div>`; }
-P.resetAuthFlow.fn = s => { step = s; draft = { gender: '', level: '', goalMin: 10 }; renderAuth(); };
+P.resetAuthFlow.fn = s => { step = s; draft = { gender: '', level: '', goalMin: 10, leniency: '', placed: null }; renderAuth(); };
 const authErr = m => { const e = $('#err'); if (e) e.textContent = m; };
 
 // =====================================================================
@@ -284,9 +288,9 @@ async function viewProgress() {
 // =====================================================================
 function viewMore() {
   const rows = [['account', 'user', 'Account', 'Profile, level and sign-in'], ['path', 'route', 'Your path', 'Lessons and library'], ['shop', 'bag', 'Rewards', `${S.coins} coins to spend`], ['fasting', 'moon', 'Fasting log', 'Track your fasts'], ['hadith', 'quote', 'Hadith', 'Daily wisdom'], ['advice', 'bulb', 'Learning advice', 'Memorisation tips'],
-    ['prayer', 'dome', 'Prayer times', 'Next prayer countdown'], ['dhikr', 'beads', 'Dhikr counter', 'Tasbih'], ['alphabet', 'type', 'Arabic alphabet', 'Letters and sounds'], ['settings', 'settings', 'Settings', 'Appearance, sound, reciter'], ['about', 'info', 'About Iqra', 'How it works']];
+    ['prayer', 'dome', 'Prayer times', 'Next prayer countdown'], ['dhikr', 'beads', 'Dhikr counter', 'Tasbih'], ['alphabet', 'type', 'Arabic alphabet', 'Letters and sounds'], ['settings', 'settings', 'Settings', 'Appearance, sound, reciter'], ['about', 'info', 'About Iqra', 'How it works'], ['privacy', 'shield', 'Privacy policy', 'How your data is used'], ['terms', 'file', 'Terms of use', 'The rules of the app']];
   return { html: `<header class="top"><h1>More</h1></header><button class="card nur-card" data-act="nur"><span class="ico big">${ic('sparkle', 22)}</span><div class="grow"><b>Chat with Nur</b><small class="muted">Ask about letters, tajweed or your next step</small></div>${ic('chevR', 18, 'dim')}</button>
-    <div class="card list">${rows.map(r => lrow(r[1], r[2], r[3], r[0] === 'path' ? '#/path' : `#/more/${r[0]}`)).join('')}</div>` };
+    <div class="card list">${rows.map(r => lrow(r[1], r[2], r[3], r[0] === 'path' ? '#/path' : r[0] === 'privacy' || r[0] === 'terms' ? `${r[0]}.html` : `#/more/${r[0]}`)).join('')}</div>` };
 }
 
 // =====================================================================
@@ -323,13 +327,15 @@ document.addEventListener('click', async e => {
   if (a === 'a-go') { step = t.dataset.s; renderAuth(); }
   else if (a === 'a-pick') { draft[t.dataset.k] = t.dataset.k === 'goalMin' ? +t.dataset.v : t.dataset.v; $$(`[data-act="a-pick"][data-k="${t.dataset.k}"]`).forEach(b => b.classList.toggle('on', b === t)); feel('tick'); }
   else if (a === 'a-level') { draft.level = t.dataset.l; $$('.lv').forEach(b => { b.classList.toggle('on', b === t); const c = b.querySelector('.ic.chk'); if (c) c.remove(); }); t.insertAdjacentHTML('beforeend', ic('check', 20, 'chk')); feel('tick'); }
-  else if (a === 'a-next1') { draft.name = val('p-name'); draft.age = +val('p-age'); if (!draft.name) return authErr('Please enter your name.'); if (!(draft.age >= 5 && draft.age <= 110)) return authErr('Please enter a valid age.'); if (!draft.gender) return authErr('Please choose an option.'); step = 's2'; renderAuth(); }
+  else if (a === 'a-next1') { draft.name = val('p-name'); draft.age = +val('p-age'); if (!draft.name) return authErr('Please enter your name.'); if (!(draft.age >= 5 && draft.age <= 110)) return authErr('Please enter a valid age.'); if (draft.age < 13) return authErr('Iqra is for ages 13 and up. Younger learners can use it with a parent or guardian.'); if (!draft.gender) return authErr('Please choose an option.'); step = 's2'; renderAuth(); }
+  else if (a === 'a-placement') { const box = $('.auth-card'); runPlacement(box, { onCancel: () => { step = 's2'; renderAuth(); }, onDone: r => { draft.level = r.level; draft.leniency = r.leniency; draft.placed = r.scores; step = 's2'; renderAuth(); toast('Level set. You can still change it.', 'check'); } }); }
   else if (a === 'a-next2') { if (!draft.level) return authErr('Pick where you are now.'); step = 's3'; renderAuth(); }
   else if (a === 'a-create') {
     const username = val('r-user').toLowerCase(), email = val('r-email'), password = $('#r-pw').value;
+    if (!$('#r-agree').checked) return authErr('Please confirm you are 13 or older and accept the Terms and Privacy Policy.');
     if (!/^[a-z0-9_]{3,20}$/.test(username)) return authErr('Username: 3 to 20 letters, numbers or underscores.'); if (!/^\S+@\S+\.\S{2,}$/.test(email)) return authErr('Enter a valid email.'); if (password.length < 8) return authErr('Password needs 8+ characters.');
     t.disabled = true; t.textContent = 'Creating…';
-    try { S.profile = { name: draft.name, age: draft.age, gender: draft.gender, level: draft.level, goalMin: draft.goalMin || 10 }; S.track = trackFor(draft.level); if (draft.level === 'fluent') S.settings.openAll = true; S.updatedAt = Date.now(); await register({ username, email, password }); save(); await boot(); toast(`Welcome, ${draft.name}`, 'moon'); }
+    try { S.profile = { name: draft.name, age: draft.age, gender: draft.gender, level: draft.level, goalMin: draft.goalMin || 10 }; S.track = trackFor(draft.level); if (draft.level === 'fluent') S.settings.openAll = true; if (draft.leniency) S.settings.leniency = draft.leniency; if (draft.placed) S.profile.placement = { at: Date.now(), scores: draft.placed }; S.profile.agreedAt = Date.now(); S.updatedAt = Date.now(); await register({ username, email, password }); save(); await boot(); toast(`Welcome, ${draft.name}`, 'moon'); }
     catch (er) { S.profile = null; t.disabled = false; t.textContent = 'Create account'; authErr(er.message); }
   } else if (a === 'a-login') {
     t.disabled = true; try { await login({ id: val('l-id'), password: $('#l-pw').value }); if (!S.profile) throw new Error('No profile found for this account on this device.'); await boot(); } catch (er) { t.disabled = false; authErr(er.message); }

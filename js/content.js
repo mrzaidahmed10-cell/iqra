@@ -126,3 +126,18 @@ export const ADVICE = [
   { c: 'Heart', i: 'sparkle', t: 'Ask for help', d: 'Begin with a short dua for ease and understanding. Sincerity and effort are what count.' },
   { c: 'Heart', i: 'leaf', t: 'Struggle is reward', d: 'If it feels hard, remember the hadith about the reciter who struggles: a double reward.' },
 ];
+
+// Ayahs per surah, used to turn a global ayah number into surah:ayah for sources that need it.
+export const AYAH_COUNTS = [7,286,200,176,120,165,206,75,129,109,123,111,43,52,99,128,111,110,98,135,112,78,118,64,77,227,93,88,69,60,34,30,73,54,45,83,182,88,75,85,54,53,89,59,37,35,38,29,18,45,60,49,62,55,78,96,29,22,24,13,14,11,11,18,12,12,30,52,52,44,28,28,20,56,40,31,50,40,46,42,29,19,36,25,22,17,19,26,30,20,15,21,11,8,8,19,5,8,8,11,11,8,3,9,5,4,7,3,6,3,5,4,5,6];
+export const RECITERS = [
+  { id: 'ar.alafasy', n: 'Mishary Alafasy' }, { id: 'ar.husary', n: 'Mahmoud Khalil Al-Husary' },
+  { id: 'ar.minshawi', n: 'Mohamed Siddiq El-Minshawi' }, { id: 'ar.abdulbasitmurattal', n: 'Abdul Basit (Murattal)' },
+  { id: 'ea:Yasser_Ad-Dussary_128kbps', n: 'Yasser Ad-Dosary' },
+];
+
+// How forgiving the recitation coach is. Chosen from the placement quiz, adjustable any time.
+export const LENIENCY = {
+  gentle: { n: 'Gentle', d: 'Encouraging. Small slips are not counted against you.', ok: .72, wrong: .42, pron: .8, passPron: true, ai: 'The student is a beginner. Be generous and encouraging. Mark real=true only for clearly wrong or skipped words; treat accent, small vowel slips and unclear articulation as NOT real. List at most 2 tajweed reminders.' },
+  balanced: { n: 'Balanced', d: 'Fair. Real word mistakes count, tiny slips count half.', ok: .8, wrong: .5, pron: .5, passPron: false, ai: 'The student is intermediate. Be fair: mark clear word errors and clear letter substitutions as real, ignore transcription noise.' },
+  strict: { n: 'Strict', d: 'Exacting. Pronunciation slips count heavily.', ok: .88, wrong: .6, pron: .25, passPron: false, ai: 'The student is advanced and wants exacting feedback. Flag clear letter substitutions, dropped or added letters and likely makhraj problems as real, and list up to 6 tajweed reminders.' },
+};

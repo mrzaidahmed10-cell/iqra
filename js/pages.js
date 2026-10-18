@@ -4,8 +4,9 @@ import {
   hijri, applyTheme, reward, checkBadges, setLevel, trackFor, alphabetDone, burst,
 } from './core.js';
 import { ic } from './icons.js';
-import { HADITH, ADVICE, DHIKR, LETTERS, THEMES, AVATARS, FAST_TYPES, LEVELS, TRACKS, formsOf } from './content.js';
+import { HADITH, ADVICE, DHIKR, LETTERS, THEMES, AVATARS, FAST_TYPES, LEVELS, TRACKS, RECITERS, LENIENCY, formsOf } from './content.js';
 import { UNITS } from './curriculum.js';
+import { runPlacement } from './placement.js';
 import { startLesson } from './lesson.js';
 import { back, ring, val, timers, refresh, clearTimers } from './ui.js';
 
@@ -23,6 +24,7 @@ export function viewAccount() {
   return {
     html: `${back()}<h2>Account</h2><p class="muted small">${Auth.remote ? 'Synced across your devices' : 'Stored on this device only (cloud sync is not connected)'}</p>
     <section class="card form"><h3>Your level</h3><button class="lrow plain" data-act="level"><span class="ico">${ic(lv.icon, 20)}</span><div class="grow"><b>${lv.t}</b><small class="muted">Plan: ${TRACKS[S.track].n}. Tap to change.</small></div>${ic('chevR', 18, 'dim')}</button></section>
+    <section class="card form"><h3>Recitation coach</h3><p class="muted small">Strictness: <b>${LENIENCY[S.settings.leniency || 'balanced'].n}</b>. ${p.placement ? 'From your placement quiz.' : 'Take the quiz for a recommendation.'}</p><div class="col-gap"><button class="btn" data-act="placement">${ic('compass', 18)} ${p.placement ? 'Retake placement quiz' : 'Take placement quiz'}</button><a class="btn ghost" href="#/more/settings">Change strictness</a></div></section>
     <section class="card form"><h3>About you</h3><label>Name<input id="a-name" value="${esc(p.name || '')}"></label><label>Age<input id="a-age" type="number" inputmode="numeric" value="${esc(p.age || '')}"></label>
     <label>Gender<select id="a-gender"><option value="male" ${p.gender === 'male' ? 'selected' : ''}>Male</option><option value="female" ${p.gender === 'female' ? 'selected' : ''}>Female</option><option value="na" ${p.gender === 'na' ? 'selected' : ''}>Prefer not to say</option></select></label>
     <label>Daily goal<select id="a-goal">${[5, 10, 20, 30].map(g => `<option value="${g}" ${(p.goalMin || 10) === g ? 'selected' : ''}>${g} minutes</option>`).join('')}</select></label><button class="btn primary" data-act="save-profile">Save</button></section>
@@ -40,8 +42,9 @@ export function viewSettings() {
     <label>Accent<div class="swatches">${THEMES.filter(t => S.owned.themes.includes(t.id)).map(t => `<button class="sw-t ${s.theme === t.id ? 'on' : ''}" data-act="theme" data-id="${t.id}" style="--sh:${t.h}" aria-label="${t.name}"></button>`).join('')}<a class="sw-more" href="#/more/shop">${ic('plus', 16)}</a></div></label>
     <label>Arabic text size <output id="fso">${s.fontSize}px</output><input type="range" min="22" max="48" value="${s.fontSize}" data-set="fontSize"></label><p class="ar preview" dir="rtl">بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ</p></section>
     <section class="card form"><h3>Reading</h3>${tg('translation', 'English translation', 'Show meaning under each ayah')}${tg('translit', 'Transliteration', 'Latin letters to help reading')}
-    <label>Reciter<select data-set="reciter">${[['ar.alafasy', 'Mishary Alafasy'], ['ar.husary', 'Mahmoud Khalil Al-Husary'], ['ar.minshawi', 'Mohamed Siddiq El-Minshawi'], ['ar.abdulbasitmurattal', 'Abdul Basit (Murattal)']].map(r => `<option value="${r[0]}" ${s.reciter === r[0] ? 'selected' : ''}>${r[1]}</option>`).join('')}</select></label>
+    <label>Reciter<select data-set="reciter">${RECITERS.map(r => `<option value="${r.id}" ${s.reciter === r.id ? 'selected' : ''}>${r.n}</option>`).join('')}</select></label>
     <label>Playback speed</label>${seg('rate', [[0.75, '0.75×'], [1, '1×'], [1.25, '1.25×']])}</section>
+    <section class="card form"><h3>Recitation coach</h3><label>Strictness</label>${seg('leniency', Object.entries(LENIENCY).map(([k, v]) => [k, v.n]))}<p class="muted small">${LENIENCY[s.leniency || 'balanced'].d}</p><button class="btn" data-act="placement">${ic('compass', 18)} Retake the placement quiz</button></section>
     <section class="card form"><h3>Feel</h3>${tg('sound', 'Sounds', 'Soft tones for answers and navigation')}${tg('haptics', 'Haptics', 'Gentle vibration on supported phones')}${tg('openAll', 'Explorer mode', 'Unlock every surah regardless of level')}</section>`,
   };
 }
@@ -121,7 +124,20 @@ export function letterSheet(i) {
 
 // ----- actions owned by these pages -----
 const download = (name, text) => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' })); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); };
+export function openPlacement() {
+  const ov = document.createElement('div'); ov.className = 'game plcov'; ov.setAttribute('role', 'dialog'); ov.setAttribute('aria-label', 'Placement quiz');
+  ov.innerHTML = `<header class="ov-top"><button class="icon-btn" data-x aria-label="Close">${ic('x', 20)}</button><b>Placement quiz</b><span></span></header><div class="ov-body" id="plc-root"></div>`;
+  document.body.append(ov); document.body.classList.add('noscroll'); requestAnimationFrame(() => ov.classList.add('in'));
+  let stop = null; const close = () => { if (stop) stop(); ov.classList.remove('in'); setTimeout(() => ov.remove(), 280); if (!document.querySelector('.lesson,.recite,.nur,.game:not(.plcov)')) document.body.classList.remove('noscroll'); };
+  ov.querySelector('[data-x]').onclick = close;
+  stop = runPlacement(ov.querySelector('#plc-root'), { onCancel: close, onDone: r => {
+    setLevel(r.level); S.settings.leniency = r.leniency; S.profile.placement = { at: Date.now(), scores: r.scores }; save(); close();
+    toast(`Level: ${LEVELS.find(l => l.id === r.level).t}. Coach: ${LENIENCY[r.leniency].n}.`, 'check'); refresh();
+  } });
+}
+
 export const PAGE_ACT = {
+  placement: () => openPlacement(),
   level: () => openLevelSheet(),
   'toggle-secret': t => { const s = $('#secret'); s.hidden = !s.hidden; t.textContent = s.hidden ? 'Show' : 'Hide'; },
   'save-profile': () => { const p = S.profile || (S.profile = {}); p.name = val('a-name') || p.name; p.age = +val('a-age') || p.age; p.gender = val('a-gender'); p.goalMin = +val('a-goal'); save(); feel('ok'); toast('Profile saved', 'check'); },

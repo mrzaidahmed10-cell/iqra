@@ -1,8 +1,9 @@
 // Recitation grading: record, transcribe (Groq Whisper), align with the mushaf, review tajweed (Groq), show a graded result.
 // Practice mode grades any range. Mastery mode records a pass toward mastering the surah.
-import { S, $, $$, esc, toAr, api, Auth, nrm, wordsOf, sr, day, save, reward, sheet, closeSheet, toast, feel, sfx, haptic, stopAllAudio } from './core.js';
+import { S, $, $$, esc, toAr, api, Auth, nrm, wordsOf, sr, day, save, reward, sheet, closeSheet, toast, feel, sfx, haptic, stopAllAudio, getWords, audioUrl } from './core.js';
 import { ic } from './icons.js';
 import { openNur } from './nur.js';
+import { LENIENCY } from './content.js';
 
 const CHUNK = 20, MAX = 30;
 const partsOf = count => { if (count <= MAX) return [[1, count]]; const p = []; for (let s = 1; s <= count; s += CHUNK) p.push([s, Math.min(count, s + CHUNK - 1)]); return p; };
@@ -25,6 +26,7 @@ function align(E, H) {
   return res;
 }
 export const gradeOf = s => s >= 98 ? ['Flawless', 'good'] : s >= 90 ? ['Excellent', 'good'] : s >= 80 ? ['Very good', 'good'] : s >= 65 ? ['Good progress', 'mid'] : ['Keep practising', 'low'];
+const lenOf = () => LENIENCY[S.settings.leniency] || LENIENCY.balanced;
 const LAB = { wrong: 'Wrong word', missing: 'Missing word', pron: 'Pronunciation', taj: 'Tajweed reminder' };
 
 /** opts: {from, to, mastery}. Without a range, a picker is shown. */
@@ -33,7 +35,7 @@ export function openRecite(surah, ayahs, opts = {}) {
   stopAllAudio();
   const ov = document.createElement('div'); ov.className = 'recite'; ov.setAttribute('role', 'dialog'); ov.setAttribute('aria-label', 'Recite ' + surah.en);
   document.body.append(ov); document.body.classList.add('noscroll', 'studying'); requestAnimationFrame(() => ov.classList.add('in'));
-  let mr = null, stream = null, tick = null, actx = null, raf = 0, W = [], hard = false, result = null, range = { from: 1, to: Math.min(surah.count, MAX), mastery: false }, blobUrl = '', replay = null;
+  let mr = null, stream = null, tick = null, actx = null, raf = 0, W = [], hard = false, result = null, range = { from: 1, to: Math.min(surah.count, MAX), mastery: false }, blobUrl = '', replay = null, recBlob = null, dctx = null, dbuf = null, wsrc = null, wtoken = 0, wref = null;
   const cleanup = () => { clearInterval(tick); cancelAnimationFrame(raf); try { if (mr && mr.state !== 'inactive') { mr.onstop = null; mr.stop(); } } catch { /* ignore */ } if (stream) stream.getTracks().forEach(t => t.stop()); stream = null; mr = null; try { actx && actx.close(); } catch { /* ignore */ } actx = null; if (replay) { replay.pause(); replay = null; } };
   const close = () => { cleanup(); if (blobUrl) URL.revokeObjectURL(blobUrl); ov.classList.remove('in'); setTimeout(() => ov.remove(), 280); if (!$('.lesson,.nur')) document.body.classList.remove('studying'); if (!$('.lesson,.game,.nur')) document.body.classList.remove('noscroll'); window.dispatchEvent(new Event('iqra-refresh')); };
   const top = t => `<header class="ov-top"><button class="icon-btn" data-k="close" aria-label="Close">${ic('x', 20)}</button><b>${esc(t)}</b><span></span></header>`;
@@ -56,6 +58,7 @@ export function openRecite(surah, ayahs, opts = {}) {
     cleanup(); result = null; const sel = ayahs.filter(a => a.n >= range.from && a.n <= range.to); W = [];
     sel.forEach(a => { const ws = wordsOf(a.ar); ws.forEach((w, i) => W.push({ w, a: a.n, last: i === ws.length - 1 })); });
     ov.innerHTML = `${top((range.mastery ? 'Mastery · ' : '') + surah.en)}<div class="ov-body"><p class="coach-note">${ic('mic', 18)}<span>Recite <b>ayah ${range.from}${range.to > range.from ? ' to ' + range.to : ''}</b> in one go, at a steady pace. ${range.mastery ? 'A perfect recitation counts toward mastery.' : 'You will get a grade and a list of things to fix.'}</span></p>
+      <p class="muted small">Your recording is sent to an AI service (Groq) to be transcribed and graded. Iqra does not store it.</p>
       <label class="switch-row"><span><b>Hide the text</b><small class="muted">Recite from memory${range.mastery ? ' (+50 XP)' : ''}</small></span><input type="checkbox" id="hard" ${hard ? 'checked' : ''}></label>
       <div class="rtext ar" id="rtext" dir="rtl">${textHTML()}</div></div>
       <footer class="ov-foot"><button class="btn primary big" data-k="rec">${ic('mic', 20)} Start recording</button></footer>`;
@@ -84,24 +87,25 @@ export function openRecite(surah, ayahs, opts = {}) {
   function stopRec() { clearInterval(tick); cancelAnimationFrame(raf); if (mr && mr.state !== 'inactive') mr.stop(); }
 
   async function analyze(blob) {
-    if (blobUrl) URL.revokeObjectURL(blobUrl); blobUrl = URL.createObjectURL(blob);
+    if (blobUrl) URL.revokeObjectURL(blobUrl); blobUrl = URL.createObjectURL(blob); recBlob = blob; dbuf = null;
     ov.innerHTML = `${top('Checking your recitation')}<div class="ov-body"><div class="working"><div class="spinner"></div><h3 id="ph">Listening to your recitation…</h3><p class="muted">This takes a few seconds.</p></div></div>`;
     try {
       const fd = new FormData(); fd.append('audio', blob, 'rec.' + (/mp4|m4a/.test(blob.type) ? 'm4a' : 'webm'));
       const t = await api('transcribe', 'POST', fd);
       const ph = $('#ph', ov); if (ph) ph.textContent = 'Comparing with the mushaf…';
-      const raw = (t.text || '').replace(/[^؀-ۿ\s]/g, ' ').split(/\s+/).filter(Boolean); const H = [], Hr = [];
-      raw.forEach(r => { const n = nrm(r); if (n) { H.push(n); Hr.push(r); } });
+      const L = lenOf(), H = [], Hr = [], Ht = [];
+      if (Array.isArray(t.words) && t.words.length >= 2) t.words.forEach(x => { const r = String(x.w || '').replace(/[^؀-ۿ]/g, ''), n = nrm(r); if (n) { H.push(n); Hr.push(r); Ht.push({ s: x.s, e: x.e }); } });
+      else (t.text || '').replace(/[^؀-ۿ\s]/g, ' ').split(/\s+/).filter(Boolean).forEach(r => { const n = nrm(r); if (n) { H.push(n); Hr.push(r); Ht.push(null); } });
       if (H.length < 2) throw new Error("I couldn't hear a recitation. Check your microphone and try again.");
       const E = W.map(x => nrm(x.w)), al = align(E, H), m = W.length;
-      const info = W.map((x, i) => { const j = al[i]; const s = j < 0 ? 0 : sim(E[i], H[j]); return { i, j, s, heard: j < 0 ? null : Hr[j], st: j < 0 ? 'missing' : s >= .8 ? 'ok' : s >= .5 ? 'close' : 'wrong' }; });
+      const info = W.map((x, i) => { const j = al[i]; const s = j < 0 ? 0 : sim(E[i], H[j]); return { i, j, s, heard: j < 0 ? null : Hr[j], st: j < 0 ? 'missing' : s >= L.ok ? 'ok' : s >= L.wrong ? 'close' : 'wrong' }; });
       const missing = info.filter(x => x.st === 'missing').length;
       const near = i => { let a = i - 1; while (a >= 0 && info[a].j < 0) a--; let b = i + 1; while (b < m && info[b].j < 0) b++; const lo = a >= 0 ? info[a].j + 1 : 0, hi = b < m ? info[b].j : H.length; return Hr.slice(lo, hi).slice(0, 4); };
       const cands = info.filter(x => x.st !== 'ok').slice(0, 120);
       let coach = null;
       if (missing / m <= .35) {
         const p2 = $('#ph', ov); if (p2) p2.textContent = 'Your coach is reviewing tajweed…';
-        try { coach = await api('coach', 'POST', { surah: surah.en, transcript: t.text, words: m <= 250 ? W.map(x => x.w) : null, candidates: cands.map(c => ({ i: c.i, expected: W[c.i].w, heard: c.heard, near: c.heard ? null : near(c.i), sim: +c.s.toFixed(2) })) }); } catch { coach = null; }
+        try { coach = await api('coach', 'POST', { leniency: S.settings.leniency || 'balanced', surah: surah.en, transcript: t.text, words: m <= 250 ? W.map(x => x.w) : null, candidates: cands.map(c => ({ i: c.i, expected: W[c.i].w, heard: c.heard, near: c.heard ? null : near(c.i), sim: +c.s.toFixed(2) })) }); } catch { coach = null; }
       }
       const marks = {};
       for (const c of cands) {
@@ -112,12 +116,13 @@ export function openRecite(surah, ayahs, opts = {}) {
         marks[c.i] = { type, heard: c.heard, issue: v?.issue || (type === 'missing' ? 'This word was not heard.' : type === 'wrong' ? 'This sounded like a different word.' : 'Pronunciation looks slightly off.'), tip: v?.tip || '' };
       }
       (coach?.tajweed_watch || []).forEach(x => { if (Number.isInteger(x.i) && x.i >= 0 && x.i < m && !marks[x.i]) marks[x.i] = { type: 'taj', heard: null, issue: x.rule || 'Tajweed reminder', tip: x.tip || '' }; });
-      const errors = Object.values(marks).filter(x => x.type !== 'taj').length, incomplete = missing / m > .35;
+      const errors = Object.values(marks).filter(x => x.type !== 'taj' && !(L.passPron && x.type === 'pron')).length, incomplete = missing / m > .35;
       // Word credit: clean = 1, pronunciation slip = half, wrong or missing = 0
-      const credit = W.reduce((a, _, i) => { const k = marks[i]; return a + (!k || k.type === 'taj' ? 1 : k.type === 'pron' ? .5 : 0); }, 0);
+      const credit = W.reduce((a, _, i) => { const k = marks[i]; return a + (!k || k.type === 'taj' ? 1 : k.type === 'pron' ? L.pron : 0); }, 0);
       const score = Math.max(0, Math.min(errors ? 99 : 100, Math.round(100 * credit / m)));
       const per = {}; W.forEach((x, i) => { const k = marks[i], c = !k || k.type === 'taj' ? 1 : k.type === 'pron' ? .5 : 0; (per[x.a] = per[x.a] || { s: 0, n: 0 }); per[x.a].s += c; per[x.a].n++; });
-      result = { marks, errors, score, per, pass: !errors && !incomplete, incomplete, summary: coach?.summary || '', strengths: coach?.strengths || '', hasCoach: !!coach };
+      const clips = info.map(x => (x.j >= 0 && Ht[x.j]) || null);
+      result = { clips, marks, errors, score, per, pass: !errors && !incomplete, incomplete, summary: coach?.summary || '', strengths: coach?.strengths || '', hasCoach: !!coach };
       showResult();
     } catch (e) {
       ov.innerHTML = `${top('Could not check')}<div class="ov-body"><div class="working">${ic('info', 36)}<h3>${esc(e.message || 'Something went wrong')}</h3></div></div><footer class="ov-foot"><button class="btn primary big" data-k="retry">Try again</button></footer>`;
@@ -152,17 +157,52 @@ export function openRecite(surah, ayahs, opts = {}) {
       <footer class="ov-foot"><div class="col-gap"><div class="row-gap"><button class="btn grow" data-k="replay" id="rp">${ic('play', 16)} My recording</button><button class="btn grow" data-k="nur">${ic('message', 16)} Ask Nur</button></div><div class="row-gap"><button class="btn grow" data-k="retry">${ic('repeat', 16)} Try again</button><button class="btn primary grow" data-k="close">Done</button></div></div></footer>`;
     requestAnimationFrame(() => requestAnimationFrame(() => { const f = $('.gf', ov); if (f) f.setAttribute('stroke-dashoffset', f.dataset.to); }));
   }
+  // ---- Word playback: your own voice for that word, then the correct pronunciation ----
+  const stopWord = () => { wtoken++; try { wsrc && wsrc.stop(); } catch { /* already stopped */ } wsrc = null; if (wref) { wref.pause(); wref = null; } };
+  async function decoded() {
+    if (dbuf) return dbuf;
+    const AC = window.AudioContext || window.webkitAudioContext; if (!AC || !recBlob) return null;
+    dctx = dctx || new AC(); if (dctx.state === 'suspended') await dctx.resume();
+    try { dbuf = await dctx.decodeAudioData(await recBlob.arrayBuffer()); } catch { dbuf = null; }
+    return dbuf;
+  }
+  const playMine = async i => {
+    const c = result.clips[i]; if (!c) return false;
+    const buf = await decoded(); if (!buf) return false; const my = wtoken;
+    const s = Math.max(0, c.s - .12), e = Math.min(buf.duration, Math.max(c.e, c.s + .25) + .15);
+    return new Promise(res => { const src = dctx.createBufferSource(); src.buffer = buf; src.connect(dctx.destination); wsrc = src; src.onended = () => res(my === wtoken); src.start(0, s, e - s); });
+  };
+  async function refUrl(i) {
+    const x = W[i]; const idx = W.slice(0, i).filter(y => y.a === x.a).length, n = W.filter(y => y.a === x.a).length;
+    const ws = await getWords(surah.n, x.a);
+    if (ws && ws.length === n && ws[idx] && ws[idx].au) return { url: ws[idx].au, word: true };
+    const g = ayahs.find(a => a.n === x.a)?.g; return { url: g ? audioUrl(g) : '', word: false };
+  }
+  const playRef = async i => {
+    const my = wtoken; let r; try { r = await refUrl(i); } catch { return false; } if (!r.url || my !== wtoken) return false;
+    return new Promise(res => { const a = new Audio(r.url); wref = a; a.playbackRate = S.settings.rate || 1; a.onended = () => res(my === wtoken); a.onerror = () => res(false); a.play().catch(() => res(false)); });
+  };
+  async function hear(i, which, ui) {
+    stopWord(); stopAllAudio(); const set = (t, on) => { ui.querySelectorAll('[data-p]').forEach(b => b.classList.toggle('on', b.dataset.p === on)); const st = ui.querySelector('.pst'); if (st) st.textContent = t; };
+    try {
+      if (which !== 'ref') { set('Your recitation', which === 'both' ? 'both' : 'mine'); const ok = await playMine(i); if (!ok && which === 'mine') { set(result.clips[i] ? 'Could not play your recording' : 'Your recording of this word was not captured', ''); return; } }
+      if (which !== 'mine') { set('Correct pronunciation', which === 'both' ? 'both' : 'ref'); const my = wtoken; if (which === 'both') await new Promise(r => setTimeout(r, 250)); if (my !== wtoken) return; await playRef(i); }
+    } finally { set('', ''); }
+  }
   const wordInfo = i => {
-    const m = result.marks[i]; if (!m) return;
-    const el = sheet(`<div class="ar big center" dir="rtl">${esc(W[i].w)}</div><h3 class="center">${LAB[m.type]}</h3>${m.heard ? `<p><b>I heard:</b> <span class="ar">${esc(m.heard)}</span></p>` : ''}<p>${esc(m.issue)}</p>${m.tip ? `<p class="muted">${esc(m.tip)}</p>` : ''}<button class="btn" data-c="1">Close</button>`);
-    el.addEventListener('click', e => { if (e.target.closest('[data-c]')) closeSheet(); });
+    const m = result.marks[i] || { type: 'ok' }, c = result.clips[i], good = m.type === 'ok';
+    const el = sheet(`<div class="ar big center" dir="rtl">${esc(W[i].w)}</div><h3 class="center">${good ? 'Sounded good' : LAB[m.type]}</h3>
+      <div class="wplay"><button class="btn" data-p="mine" ${c ? '' : 'disabled'}>${ic('mic', 16)} You</button><button class="btn" data-p="ref">${ic('volume', 16)} Correct</button><button class="btn primary" data-p="both">${ic('play', 16)} Hear both</button></div><p class="muted center small pst" aria-live="polite"></p>
+      ${m.heard ? `<p><b>I heard:</b> <span class="ar">${esc(m.heard)}</span></p>` : ''}${m.issue ? `<p>${esc(m.issue)}</p>` : ''}${m.tip ? `<p class="muted">${esc(m.tip)}</p>` : ''}<button class="btn" data-c="1">Close</button>`);
+    el.addEventListener('click', e => { const p = e.target.closest('[data-p]'); if (p && !p.disabled) return hear(i, p.dataset.p, el); if (e.target.closest('[data-c]')) { stopWord(); closeSheet(); } });
+    if (!good) hear(i, c ? 'both' : 'ref', el);
   };
 
   ov.addEventListener('click', e => {
     const t = e.target.closest('[data-k]'), w = e.target.closest('.w[data-i]');
-    if (!t && w && result) return wordInfo(+w.dataset.i);
+    if (!t && w && result && !w.classList.contains('aend')) return wordInfo(+w.dataset.i);
     if (!t) return; const k = t.dataset.k;
-    if (k === 'close') close();
+    if (k === 'close') { stopWord(); close(); }
     else if (k === 'dn' || k === 'up') clampRange(t.dataset.f, k === 'up' ? 1 : -1);
     else if (k === 'go') { range.mastery = false; ready(); }
     else if (k === 'part') { const p = parts[+t.dataset.n]; range = { from: p[0], to: p[1], mastery: true }; ready(); }
