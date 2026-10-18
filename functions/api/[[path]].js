@@ -206,11 +206,20 @@ async function nur(request, env) {
   if (!msgs.length || msgs[msgs.length - 1].role !== 'user') return J({ error: 'Bad request' }, 400);
   const c = b.context && typeof b.context === 'object' ? b.context : {};
   const ctx = JSON.stringify({ name: String(c.name || '').slice(0, 40), level: String(c.level || '').slice(0, 20), plan: String(c.track || '').slice(0, 30), appLevel: +c.appLevel || 1, ayahsLearned: +c.ayahsLearned || 0, surahsMastered: +c.surahsMastered || 0, lessonsDone: +c.lessonsDone || 0, looking_at: String(c.extra || '').slice(0, 400) });
-  const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST', headers: { Authorization: 'Bearer ' + env.GROQ_API_KEY, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model: env.GROQ_CHAT_MODEL || 'llama-3.3-70b-versatile', temperature: 0.5, max_tokens: 500, messages: [{ role: 'system', content: NUR_SYSTEM + '\nStudent context: ' + ctx }, ...msgs] }),
-  });
-  if (!r.ok) return J({ error: r.status === 429 ? 'Nur is busy right now. Try again in a moment.' : 'Nur is unavailable right now.' }, 502);
+  const models = [...new Set([env.GROQ_CHAT_MODEL, 'llama-3.3-70b-versatile', 'llama-3.1-8b-instant'].filter(Boolean))];
+  let r, why = '';
+  for (const model of models) {
+    try {
+      r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST', headers: { Authorization: 'Bearer ' + env.GROQ_API_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model, temperature: 0.5, max_tokens: 500, messages: [{ role: 'system', content: NUR_SYSTEM + '\nStudent context: ' + ctx }, ...msgs] }),
+      });
+    } catch (e) { r = null; why = 'network: ' + (e && e.message); continue; }
+    if (r.ok) break;
+    try { why = `${model} ${r.status}: ` + ((await r.json()).error || {}).message; } catch { why = `${model} ${r.status}`; }
+    if (r.status === 401 || r.status === 403) break;
+  }
+  if (!r || !r.ok) return J({ error: (r && r.status === 429 ? 'Nur is busy right now. Try again in a moment.' : 'Nur is unavailable right now.') + ' (' + String(why).slice(0, 160) + ')' }, 502);
   let reply = ''; try { reply = String((await r.json()).choices[0].message.content || '').trim(); } catch { /* fallthrough */ }
   if (!reply) return J({ error: 'Nur had trouble answering. Try rephrasing.' }, 502);
   return J({ reply: reply.slice(0, 2500) });
