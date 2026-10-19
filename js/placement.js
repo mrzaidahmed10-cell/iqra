@@ -6,7 +6,7 @@ import { LEVELS, LENIENCY } from './content.js';
 
 const Q = (sec, q, opts, a, o = {}) => ({ sec, q, opts, a, ...o });
 const SECTIONS = {
-  letters: { n: 'Letters', d: 'Recognising letters and their sounds' },
+  letters: { n: 'Letters', d: 'Recognizing letters and their sounds' },
   forms: { n: 'Joining', d: 'How letters connect and change shape' },
   vowels: { n: 'Vowel marks', d: 'Harakat, sukoon, shaddah and tanween' },
   reading: { n: 'Reading words', d: 'Sounding out real Arabic' },
@@ -45,7 +45,7 @@ const BANK = [
 ];
 const SELF = [
   { id: 'read', q: 'How do you read the Quran today?', opts: [['none', "I can't yet"], ['slow', 'Slowly, I sound things out'], ['ok', 'Comfortably, with some mistakes'], ['fluent', 'Fluently, from the mushaf']] },
-  { id: 'mem', q: 'How much have you memorised?', opts: [['0', 'Nothing yet'], ['few', 'A few short surahs'], ['juz', 'Up to a juz'], ['lots', 'More than a juz']] },
+  { id: 'mem', q: 'How much have you memorized?', opts: [['0', 'Nothing yet'], ['few', 'A few short surahs'], ['juz', 'Up to a juz'], ['lots', 'More than a juz']] },
   { id: 'teach', q: 'Have you studied tajweed with a teacher?', opts: [['no', 'No'], ['some', 'A little'], ['yes', 'Yes, properly']] },
 ];
 
@@ -131,7 +131,7 @@ export function runPlacement(root, { onDone, onCancel }) {
     new: 'Letters are the best place to begin. Your plan starts at the very start, and the coach will be gentle and encouraging.',
     letters: 'You know your letters. Next come vowels, joining and reading real Quran words. The coach stays gentle while you build speed.',
     slow: 'You can read, and tajweed is where you will grow most. The coach will be fair and will flag clear mistakes.',
-    fluent: 'You read well. Your plan focuses on memorising and polishing recitation, with a coach that holds you to a high standard.',
+    fluent: 'You read well. Your plan focuses on memorizing and polishing recitation, with a coach that holds you to a high standard.',
   }[l]);
 
   root.onclick = e => {

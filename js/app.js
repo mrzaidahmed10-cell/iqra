@@ -2,10 +2,10 @@
 import {
   S, $, $$, esc, toAr, todayKey, levelOf, xpFor, streakNow, sr, statusOf, reqLevel, unlocked, day, dayMinutes, questsNow, BADGES, Auth, probe, restore, register, login,
   save, getSurahList, getSurah, getAyahByGlobal, playQueue, togglePlayer, nextAyah, prevAyah, stopPlayer, seekPlayer, Player, bus, toast, sheet, closeSheet, feel, haptic, sfx,
-  hijri, TOTAL_AYAHS, learnedTotal, masteredTotal, applyTheme, trackFor, setLevel, nextItem, planItems, itemDone, lessonDone, dueReviews, setRate,
+  surahItems, listenState, setSleep, sleepLeft, hijri, TOTAL_AYAHS, learnedTotal, masteredTotal, applyTheme, trackFor, setLevel, nextItem, planItems, itemDone, lessonDone, dueReviews, setRate,
 } from './core.js';
 import { ic } from './icons.js';
-import { LEVELS, TRACKS, FOUNDATION_SURAHS } from './content.js';
+import { LEVELS, TRACKS, FOUNDATION_SURAHS, RECITERS } from './content.js';
 import { UNITS, lessonMeta } from './curriculum.js';
 import { startLesson, startSurah, startReview, resumeSession, hasSession, sessionInfo } from './lesson.js';
 import { openRecite, gradeOf } from './recite.js';
@@ -15,7 +15,7 @@ import { back, ring, val, title, getErr, timers, clearTimers, refresh, lrow } fr
 import * as P from './pages.js';
 import { runPlacement } from './placement.js';
 
-let surahList = [], rtok = 0, qFilter = 'all', qSearch = '', chartMetric = 'xp';
+let surahList = [], rtok = 0, qFilter = 'all', qSearch = '', chartMetric = 'xp', lFilter = 'all', lSearch = '';
 const app = $('#app');
 
 // =====================================================================
@@ -35,14 +35,14 @@ let step = 'welcome', draft = { gender: '', level: '', goalMin: 10, leniency: ''
 const logo = `<svg class="logo" viewBox="0 0 64 64" aria-label="Iqra"><path d="M14 58V30C14 18 24 11 32 4c8 7 18 14 18 26v28" fill="none" stroke="var(--gold)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/><text x="32" y="46" text-anchor="middle" class="a-ar" font-size="22" fill="var(--ink)">اقرأ</text></svg>`;
 const pickRow = (key, opts) => `<div class="chips-row">${opts.map(o => `<button class="pick ${draft[key] === o[0] ? 'on' : ''}" data-act="a-pick" data-k="${key}" data-v="${esc(o[0])}">${esc(o[1])}</button>`).join('')}</div>`;
 const AUTH = {
-  welcome: () => `${logo}<h1 class="hero-t">Iqra</h1><p class="lead">Learn to read, recite and memorise the Quran with lessons that adapt to you.</p>
+  welcome: () => `${logo}<h1 class="hero-t">Iqra</h1><p class="lead">Learn to read, recite and memorize the Quran with lessons that adapt to you.</p>
     <div class="col-gap"><button class="btn primary big" data-act="a-go" data-s="s1">Get started</button><button class="btn" data-act="a-go" data-s="login">I already have an account</button></div>
     ${Auth.remote ? '' : '<p class="muted small center">Cloud sync is not connected, so your account will live on this device.</p>'}
     <p class="muted small center legal-links"><a href="privacy.html" target="_blank" rel="noopener">Privacy Policy</a> · <a href="terms.html" target="_blank" rel="noopener">Terms of Use</a></p>`,
   login: () => `<h2>Welcome back</h2><label>Username or email<input id="l-id" autocomplete="username" autocapitalize="none"></label><label>Password<input id="l-pw" type="password" autocomplete="current-password"></label><p class="err" id="err"></p>
     <div class="col-gap"><button class="btn primary big" data-act="a-login">Sign in</button><button class="btn ghost" data-act="a-go" data-s="welcome">Back</button></div>`,
   s1: () => `<div class="dots"><i class="on"></i><i></i><i></i></div><h2>Let's get to know you</h2><label>Your name<input id="p-name" value="${esc(draft.name || '')}" autocomplete="given-name"></label>
-    <label>Age<input id="p-age" type="number" inputmode="numeric" min="5" max="110" value="${esc(draft.age || '')}"></label><label>Gender</label>${pickRow('gender', [['male', 'Male'], ['female', 'Female'], ['na', 'Prefer not to say']])}<p class="err" id="err"></p>
+    <label>Age<input id="p-age" type="number" inputmode="numeric" min="1" max="120" value="${esc(draft.age || '')}"></label><label>Gender</label>${pickRow('gender', [['male', 'Male'], ['female', 'Female'], ['na', 'Prefer not to say']])}<p class="err" id="err"></p>
     <div class="col-gap"><button class="btn primary big" data-act="a-next1">Next</button><button class="btn ghost" data-act="a-go" data-s="welcome">Back</button></div>`,
   s2: () => `<div class="dots"><i class="on"></i><i class="on"></i><i></i></div><h2>Where are you now?</h2><p class="muted">This shapes your lessons, daily tasks and how strict your recitation coach is. You can change it any time.</p>
     <button class="lv plc-card" data-act="a-placement"><span class="ico">${ic('compass', 22)}</span><div><b>${draft.placed ? 'Retake the placement quiz' : 'Take the placement quiz'}</b><small>${draft.placed ? 'Result saved. Tap to redo it.' : 'Recommended. An in-depth check of your Arabic, about 5 minutes.'}</small></div>${ic('chevR', 18)}</button>
@@ -52,11 +52,18 @@ const AUTH = {
   s3: () => `<div class="dots"><i class="on"></i><i class="on"></i><i class="on"></i></div><h2>Create your account</h2><p class="muted">So your progress follows you on every device.</p>
     <label>Username<input id="r-user" autocomplete="username" autocapitalize="none" placeholder="letters, numbers, _"></label><label>Email<input id="r-email" type="email" autocomplete="email"></label>
     <label>Password<input id="r-pw" type="password" autocomplete="new-password" placeholder="8+ characters"></label>
-    <label class="check-row"><input type="checkbox" id="r-agree"><span>I am 13 or older and agree to the <a href="terms.html" target="_blank" rel="noopener">Terms of Use</a> and <a href="privacy.html" target="_blank" rel="noopener">Privacy Policy</a>. Recordings and chats are processed by an AI provider to give feedback.</span></label><p class="err" id="err"></p>
-    <div class="col-gap"><button class="btn primary big" data-act="a-create">Create account</button><button class="btn ghost" data-act="a-go" data-s="s2">Back</button></div>`,
+    <label class="check-row card"><input type="checkbox" id="r-agree" data-agree><span>I agree to the <a href="terms.html" target="_blank" rel="noopener">Terms of Use</a> and the <a href="privacy.html" target="_blank" rel="noopener">Privacy Policy</a>, which explain how my data, recordings and chats are handled.</span></label><p class="err" id="err"></p>
+    <div class="col-gap"><button class="btn primary big" data-act="a-create" id="r-go" disabled>Create account</button><button class="btn ghost" data-act="a-go" data-s="s2">Back</button></div>`,
 };
 function renderAuth() { document.body.classList.add('authing'); app.innerHTML = `<div class="auth"><div class="auth-card enter">${AUTH[step]()}</div></div>`; }
 P.resetAuthFlow.fn = s => { step = s; draft = { gender: '', level: '', goalMin: 10, leniency: '', placed: null }; renderAuth(); };
+// The placement quiz opens automatically after the first questions; skipping it is one tap.
+function startQuiz() {
+  runPlacement($('.auth-card'), {
+    onCancel: () => { draft.quizSkipped = true; step = 's2'; renderAuth(); },
+    onDone: r => { draft.level = r.level; draft.leniency = r.leniency; draft.placed = r.scores; step = 's2'; renderAuth(); toast('Level set. You can still change it.', 'check'); },
+  });
+}
 const authErr = m => { const e = $('#err'); if (e) e.textContent = m; };
 
 // =====================================================================
@@ -71,27 +78,37 @@ async function boot() {
   initNav(); renderMini();
   try { surahList = await getSurahList(); } catch { surahList = []; }
   window.__surahList = surahList;
-  route();
+  route(); legalGate();
 }
 
-// ---------- the liquid glass bar: drag the bubble, the page only changes when you let go
+// Everyone must accept the Terms and Privacy Policy once, including people who signed up before they existed.
+function legalGate() {
+  if (!S.profile || S.profile.agreedAt || $('.legal-gate')) return;
+  const g = document.createElement('div'); g.className = 'legal-gate'; g.setAttribute('role', 'dialog'); g.setAttribute('aria-modal', 'true');
+  g.innerHTML = `<div class="legal-card"><span class="ico big">${ic('shield', 26)}</span><h2>Before you continue</h2><p class="muted">We added a Privacy Policy and Terms of Use. Please read and accept them to keep using Iqra.</p><p><a href="privacy.html" target="_blank" rel="noopener">Privacy Policy</a> · <a href="terms.html" target="_blank" rel="noopener">Terms of Use</a></p><label class="check-row"><input type="checkbox" id="lg-ok"><span>I have read and agree to the Terms of Use and Privacy Policy.</span></label><button class="btn primary big" id="lg-go" disabled>Accept and continue</button></div>`;
+  document.body.append(g); requestAnimationFrame(() => g.classList.add('in'));
+  $('#lg-ok', g).onchange = e => { $('#lg-go', g).disabled = !e.target.checked; };
+  $('#lg-go', g).onclick = () => { S.profile.agreedAt = Date.now(); if (draft.quizSkipped && !draft.placed) S.profile.placementLater = Date.now(); save(); g.classList.remove('in'); setTimeout(() => g.remove(), 260); };
+}
+
+// ---------- the tab bar: slide the highlight, the page only changes when you let go
 let navApi = null;
 function initNav() {
   const nav = $('.nav'), pill = $('.nav-pill'), links = $$('.nav a'), icons = $$('.nav .ni');
-  const pad = 6; let cw = 0, W = 0, active = 0, x = 0, v = 0, tx = 0, pressed = false, raf = 0, ws = 1, hs = 1, bulge = 0, bv = 0, lastCell = -1, glare = 0;
+  const pad = 8; let cw = 0, W = 0, active = 0, x = 0, v = 0, tx = 0, pressed = false, raf = 0, ws = 1, hs = 1, bulge = 0, bv = 0, lastCell = -1, glare = 0;
   const center = i => pad + cw * (i + .5), cellAt = px => Math.max(0, Math.min(3, Math.floor((px - pad) / cw)));
   const measure = () => { const r = nav.getBoundingClientRect(); W = r.width; cw = (W - 2 * pad) / 4; pill.style.width = cw + 'px'; if (!pressed) { x = tx = center(active); } paint(); };
   function paint() {
-    const sx = ws * (1 + bulge * .42), sy = hs * (1 - bulge * .26);
+    const sx = ws * (1 + bulge * .2), sy = hs * (1 - bulge * .1);
     pill.style.transform = `translate3d(${x - cw / 2}px,0,0) scale(${sx},${sy})`;
-    icons.forEach((el, i) => { const d = (center(i) - x) / (cw * .85), mag = pressed ? .3 * Math.exp(-d * d * 1.6) : 0; el.style.transform = `translateY(${-mag * 7}px) scale(${1 + mag})`; });
+    icons.forEach((el, i) => { const d = (center(i) - x) / (cw * .85), mag = pressed ? .16 * Math.exp(-d * d * 1.6) : 0; el.style.transform = `translateY(${-mag * 8}px) scale(${1 + mag})`; });
     nav.style.setProperty('--gx', glare + 'px');
   }
   function frame() {
     const k = pressed ? .24 : .17, damp = pressed ? .7 : .76;
     v += (tx - x) * k; v *= damp; x += v;
     const bt = Math.min(1, Math.abs(v) / 12); bv += (bt - bulge) * .3; bv *= .68; bulge += bv;
-    const wt = pressed ? .64 : 1, ht = pressed ? .88 : 1; ws += (wt - ws) * .22; hs += (ht - hs) * .22; glare += (x - glare) * .3;
+    const wt = pressed ? .86 : 1, ht = pressed ? .92 : 1; ws += (wt - ws) * .22; hs += (ht - hs) * .22; glare += (x - glare) * .3;
     paint();
     if (pressed || Math.abs(tx - x) > .15 || Math.abs(v) > .08 || Math.abs(bulge) > .004 || Math.abs(ws - wt) > .004 || Math.abs(hs - ht) > .004) raf = requestAnimationFrame(frame);
     else { x = tx; v = 0; bulge = 0; ws = wt; hs = ht; raf = 0; paint(); }
@@ -128,7 +145,7 @@ function renderMini() {
     <button class="mp-info" data-mp="open"><span class="mp-eq ${Player.playing ? 'on' : ''}"><i></i><i></i><i></i></span><span class="mp-t"><b>${esc(it.label || 'Quran')}</b><small>${esc(it.sub || '')}</small></span></button>
     <button class="mp-b" data-mp="prev" aria-label="Previous">${ic('prev', 18)}</button><button class="mp-b" data-mp="next" aria-label="Next" ${Player.i + 1 >= Player.q.length ? 'disabled' : ''}>${ic('next', 18)}</button><button class="mp-b" data-mp="stop" aria-label="Close player">${ic('x', 18)}</button><i class="mp-bar"><b id="mpb"></b></i>`;
 }
-bus.addEventListener('player', renderMini);
+bus.addEventListener('player', () => { renderMini(); const l = $('#llist'); if (l) l.innerHTML = listenRows(); });
 bus.addEventListener('ptime', e => { const b = $('#mpb'); if (b && e.detail.d) b.style.width = (e.detail.t / e.detail.d * 100) + '%'; });
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-mp]'); if (!b) return; const k = b.dataset.mp; feel('tick', 'tick');
@@ -139,7 +156,7 @@ bus.addEventListener('audio', e => { $$('.ayah.playing').forEach(x => x.classLis
 
 // ---------- router
 const VIEWS = {
-  home: viewHome, path: viewPath, quran: viewQuran, surah: viewSurah, progress: viewProgress, more: viewMore,
+  home: viewHome, path: viewPath, quran: viewQuran, listen: viewListen, surah: viewSurah, progress: viewProgress, more: viewMore,
   account: P.viewAccount, settings: P.viewSettings, shop: P.viewShop, fasting: P.viewFasting, hadith: P.viewHadith, advice: P.viewAdvice, prayer: P.viewPrayer, dhikr: P.viewDhikr, alphabet: P.viewAlphabet, about: P.viewAbout,
 };
 async function route(keep = false) {
@@ -147,7 +164,7 @@ async function route(keep = false) {
   clearTimers();
   let [a = 'home', b] = (location.hash.slice(2) || 'home').split('/');
   if (a === 'more' && b && VIEWS[b]) { a = b; b = undefined; }
-  const tab = { home: 0, path: 0, quran: 1, surah: 1, progress: 2 }[a] ?? 3; navApi && navApi.set(tab);
+  const tab = { home: 0, path: 0, quran: 1, listen: 1, surah: 1, progress: 2 }[a] ?? 3; navApi && navApi.set(tab);
   const tok = ++rtok, y = view.scrollTop || window.scrollY;
   const fn = VIEWS[a] || viewHome; view.dataset.v = a;
   try {
@@ -186,6 +203,7 @@ async function viewHome() {
     html: `<header class="top"><div class="who"><span class="avatar">${ic(S.settings.avatar, 22)}</span><div><small class="muted">${hj ? esc(hj.text) : ''}</small><h1>Assalamu alaykum, ${esc(p.name || 'friend')}</h1></div></div><div class="chips"><span class="chip">${ic('flame', 14)} ${streakNow()}</span><span class="chip gold">${ic('coin', 14)} ${S.coins}</span></div></header>
     <section class="hero"><div class="hero-l"><small class="muted">Level ${lv} · ${title(lv)}</small><h2 class="mins">${dayMinutes(d)}<span> of ${p.goalMin || 10} min today</span></h2><div class="xpbar"><i style="width:${Math.round((S.xp - lo) / (hi - lo) * 100)}%"></i></div><small class="muted">${S.xp - lo} / ${hi - lo} XP to level ${lv + 1}</small><button class="trk" data-act="level">${ic(tr.icon, 16)}<span>${tr.n} plan</span>${ic('chevR', 14)}</button></div>${archHTML(prog)}</section>
     ${ses ? `<section class="card resume"><div class="up-h"><span class="ico big">${ic('play', 22)}</span><div><small class="muted">Pick up where you left off</small><h3>${esc(ses.title)}</h3><p class="muted">${esc(ses.sub || '')} · ${ses.pct}% done</p></div></div><div class="progress"><i style="width:${ses.pct}%"></i></div><button class="btn primary big" data-act="resume">Resume</button></section>` : ''}
+    ${!p.placement && !p.placementLater ? `<section class="card up plc-nudge"><div class="up-h"><span class="ico big">${ic('compass', 22)}</span><div><small class="muted">Recommended</small><h3>Find your level</h3><p class="muted">A 5 minute quiz tunes your lessons and how strict your recitation coach is.</p></div></div><div class="row-gap"><button class="btn primary grow" data-act="placement">Take the quiz</button><button class="btn ghost" data-act="plc-later">Not now</button></div></section>` : ''}
     ${upNext()}
     ${due >= 4 ? `<section class="card up"><div class="up-h"><span class="ico big">${ic('repeat', 22)}</span><div><small class="muted">Revision</small><h3>${due} ayahs ready to refresh</h3><p class="muted">A quick session keeps them from fading.</p></div></div><button class="btn big" data-act="review">Revise now</button></section>` : ''}
     <section class="tiles"><button class="tile" data-act="recite-pick"><span class="ico">${ic('mic', 22)}</span><b>Recite</b><small>Get graded</small></button><button class="tile" data-act="nur"><span class="ico">${ic('message', 22)}</span><b>Ask Nur</b><small>Your coach</small></button><button class="tile" data-act="arcade"><span class="ico">${ic('dice', 22)}</span><b>Break room</b><small>Calm games</small></button></section>
@@ -234,10 +252,38 @@ function filteredSurahs() {
   return l;
 }
 const listHTML = () => filteredSurahs().map(surahRow).join('') || '<p class="muted center">Nothing here yet.</p>';
+const rlSeg = on => `<div class="seg rdls"><a class="${on === 'read' ? 'on' : ''}" href="#/quran">${ic('book', 16)} Read</a><a class="${on === 'listen' ? 'on' : ''}" href="#/listen">${ic('headphones', 16)} Listen</a></div>`;
+const recName = id => (RECITERS.find(r => r.id === id) || RECITERS[0]).n;
+function listenRows() {
+  const L = listenState(), q = lSearch.toLowerCase().trim(); let l = surahList;
+  if (lFilter === 'short') l = l.filter(x => x.count <= 25); else if (lFilter === 'meccan') l = l.filter(x => /mecc/i.test(x.type)); else if (lFilter === 'medinan') l = l.filter(x => /medin/i.test(x.type)); else if (lFilter === 'favs') l = l.filter(x => L.favs.includes(x.n));
+  if (q) l = l.filter(x => x.en.toLowerCase().includes(q) || x.tr.toLowerCase().includes(q) || String(x.n) === q || x.ar.includes(q));
+  const cur = Player.q[Player.i], now = cur && cur.n;
+  return l.map(x => `<div class="lrow2 ${now === x.n ? 'now' : ''}"><a class="lr-info" href="#/surah/${x.n}"><span class="num">${x.n}</span><div class="grow"><b>${esc(x.en)}</b><small class="muted">${esc(x.tr)} · ${x.count} ayahs</small></div><span class="ar lr-ar">${esc(x.ar)}</span></a><button class="icon-btn sm fav ${L.favs.includes(x.n) ? 'on' : ''}" data-act="listen-fav" data-n="${x.n}" aria-label="Favorite">${ic('heart', 18)}</button><button class="icon-btn play" data-act="listen-play" data-n="${x.n}" aria-label="Play ${esc(x.en)}">${ic(now === x.n && Player.playing ? 'pause' : 'play', 18)}</button></div>`).join('') || '<p class="muted center">Nothing here yet.</p>';
+}
+async function viewListen() {
+  if (!surahList.length) surahList = await getSurahList();
+  const L = listenState(), last = L.last && surahList[L.last.n - 1], F = [['all', 'All'], ['favs', 'Favorites'], ['short', 'Short'], ['meccan', 'Meccan'], ['medinan', 'Medinan']];
+  const QUICK = [1, 18, 36, 55, 67, 112];
+  const sl = sleepLeft(), seg = (items, on, act) => `<div class="seg">${items.map(i => `<button class="${String(on) === String(i[0]) ? 'on' : ''}" data-act="${act}" data-v="${i[0]}">${i[1]}</button>`).join('')}</div>`;
+  return { html: `<header class="top"><h1>Quran</h1><span class="chip">${ic('headphones', 14)} Listen</span></header>${rlSeg('listen')}
+    <button class="card nur-card" data-act="reciter-pick"><span class="ico big">${ic('mic', 22)}</span><div class="grow"><small class="muted">Reciter</small><b>${esc(recName(S.settings.reciter))}</b></div>${ic('chevR', 18, 'dim')}</button>
+    ${last ? `<section class="card resume"><div class="up-h"><span class="ico big">${ic('play', 22)}</span><div><small class="muted">Continue listening</small><h3>${esc(last.en)}</h3><p class="muted">Ayah ${L.last.a} of ${last.count}</p></div></div><button class="btn primary big" data-act="listen-resume">${ic('play', 18)} Resume</button></section>` : ''}
+    ${L.recents.length ? `<h3 class="sec">Recently played</h3><div class="chips-row scroll">${L.recents.map(n => surahList[n - 1]).filter(Boolean).map(x => `<button class="pick" data-act="listen-play" data-n="${x.n}">${ic('play', 14)} ${esc(x.en)}</button>`).join('')}</div>` : ''}
+    <h3 class="sec">Popular</h3><div class="chips-row scroll">${QUICK.map(n => surahList[n - 1]).filter(Boolean).map(x => `<button class="pick" data-act="listen-play" data-n="${x.n}">${esc(x.en)}</button>`).join('')}</div>
+    <details class="card form pbopts"><summary><span>Playback options</span><small class="muted">Repeat, speed, sleep timer</small></summary>
+      <label class="switch-row"><span><b>Play the next surah automatically</b><small class="muted">Keeps going when a surah ends</small></span><input type="checkbox" data-set="autoNext" ${S.settings.autoNext !== false ? 'checked' : ''}></label>
+      <label>Repeat</label>${seg([['off', 'Off'], ['ayah', 'Ayah'], ['surah', 'Surah']], S.settings.repeat || 'off', 'listen-repeat')}
+      <label>Speed</label>${seg([[0.75, '0.75×'], [1, '1×'], [1.25, '1.25×']], S.settings.rate || 1, 'listen-rate')}
+      <label>Sleep timer ${sl ? `<small class="muted">· stops in ${Math.ceil(sl / 6e4)} min</small>` : ''}</label>${seg([[0, 'Off'], [15, '15 min'], [30, '30 min'], [60, '1 hr']], sl ? '' : 0, 'listen-sleep')}</details>
+    <label class="search">${ic('search', 18)}<input id="lsearch" placeholder="Search surahs to listen" value="${esc(lSearch)}" type="search" aria-label="Search surahs"></label>
+    <div class="chips-row scroll">${F.map(f => `<button class="pick ${lFilter === f[0] ? 'on' : ''}" data-act="lfilter" data-f="${f[0]}">${f[1]}</button>`).join('')}</div>
+    <div class="slist" id="llist">${listenRows()}</div>` };
+}
 async function viewQuran() {
   if (!surahList.length) surahList = await getSurahList();
   const F = [['all', 'All'], ['path', 'My path'], ['learning', 'Learning'], ['learned', 'Learned'], ['mastered', 'Mastered']];
-  return { html: `<header class="top"><h1>Quran</h1><span class="chip">${learnedTotal()} / ${TOTAL_AYAHS} ayahs</span></header>
+  return { html: `<header class="top"><h1>Quran</h1><span class="chip">${learnedTotal()} / ${TOTAL_AYAHS} ayahs</span></header>${rlSeg('read')}
     <label class="search">${ic('search', 18)}<input id="qsearch" placeholder="Search 114 surahs" value="${esc(qSearch)}" type="search" aria-label="Search surahs"></label><div class="chips-row scroll">${F.map(f => `<button class="pick ${qFilter === f[0] ? 'on' : ''}" data-act="filter" data-f="${f[0]}">${f[1]}</button>`).join('')}</div>
     <div class="slist" id="qlist">${listHTML()}</div>` };
 }
@@ -249,7 +295,7 @@ async function viewSurah(n) {
   const resume = ses && ses.kind === 'surah' && ses.n === n;
   const act = lock ? `<div class="banner">${ic('lock', 16)} Reach <b>level ${reqLevel(s.count)}</b> to unlock (you're level ${levelOf(S.xp)}). Or turn on <a href="#/more/settings">Explorer mode</a>.</div>`
     : `<div class="col-gap">${resume ? `<button class="btn primary big" data-act="resume">Resume lesson · ${ses.pct}%</button>` : st === 'learned' || st === 'mastered' ? `<button class="btn primary big" data-act="recite-surah" data-n="${n}" data-m="${st === 'learned' ? 1 : ''}">${ic('mic', 18)} ${st === 'mastered' ? 'Recite again' : 'Recite for mastery'}</button>` : `<button class="btn primary big" data-act="learn" data-n="${n}">${l ? 'Continue learning' : 'Start learning'}</button>`}
-      <div class="row-gap"><button class="btn grow" data-act="recite-surah" data-n="${n}">${ic('mic', 16)} Practise</button><button class="btn grow" data-act="play-surah" data-n="${n}">${ic('headphones', 16)} Listen</button><button class="btn grow" data-act="nur-surah" data-n="${n}">${ic('message', 16)} Nur</button></div></div>`;
+      <div class="row-gap"><button class="btn grow" data-act="recite-surah" data-n="${n}">${ic('mic', 16)} Practice</button><button class="btn grow" data-act="play-surah" data-n="${n}">${ic('headphones', 16)} Listen</button><button class="btn grow" data-act="nur-surah" data-n="${n}">${ic('message', 16)} Nur</button></div></div>`;
   return {
     html: `${back('#/quran', 'Quran')}<section class="card surah-head ${st}"><div class="ar big-name">${esc(s.ar)}</div><h2>${esc(s.en)}</h2><p class="muted">${esc(s.tr)} · ${esc(s.type)} · ${s.count} ayahs</p>
       <div class="progress"><i style="width:${l / s.count * 100}%"></i></div><p class="muted small">${st === 'mastered' ? 'Mastered' : st === 'learned' ? 'Learned. Recite it to master it.' : `${l} of ${s.count} ayahs learned`}</p>${act}</section>
@@ -287,7 +333,7 @@ async function viewProgress() {
 // More
 // =====================================================================
 function viewMore() {
-  const rows = [['account', 'user', 'Account', 'Profile, level and sign-in'], ['path', 'route', 'Your path', 'Lessons and library'], ['shop', 'bag', 'Rewards', `${S.coins} coins to spend`], ['fasting', 'moon', 'Fasting log', 'Track your fasts'], ['hadith', 'quote', 'Hadith', 'Daily wisdom'], ['advice', 'bulb', 'Learning advice', 'Memorisation tips'],
+  const rows = [['account', 'user', 'Account', 'Profile, level and sign-in'], ['path', 'route', 'Your path', 'Lessons and library'], ['shop', 'bag', 'Rewards', `${S.coins} coins to spend`], ['fasting', 'moon', 'Fasting log', 'Track your fasts'], ['hadith', 'quote', 'Hadith', 'Daily wisdom'], ['advice', 'bulb', 'Learning advice', 'Memorization tips'],
     ['prayer', 'dome', 'Prayer times', 'Next prayer countdown'], ['dhikr', 'beads', 'Dhikr counter', 'Tasbih'], ['alphabet', 'type', 'Arabic alphabet', 'Letters and sounds'], ['settings', 'settings', 'Settings', 'Appearance, sound, reciter'], ['about', 'info', 'About Iqra', 'How it works'], ['privacy', 'shield', 'Privacy policy', 'How your data is used'], ['terms', 'file', 'Terms of use', 'The rules of the app']];
   return { html: `<header class="top"><h1>More</h1></header><button class="card nur-card" data-act="nur"><span class="ico big">${ic('sparkle', 22)}</span><div class="grow"><b>Chat with Nur</b><small class="muted">Ask about letters, tajweed or your next step</small></div>${ic('chevR', 18, 'dim')}</button>
     <div class="card list">${rows.map(r => lrow(r[1], r[2], r[3], r[0] === 'path' ? '#/path' : r[0] === 'privacy' || r[0] === 'terms' ? `${r[0]}.html` : `#/more/${r[0]}`)).join('')}</div>` };
@@ -298,6 +344,7 @@ function viewMore() {
 // =====================================================================
 const ACT = {
   ...P.PAGE_ACT,
+  'plc-later': () => { S.profile.placementLater = Date.now(); save(); refresh(); },
   retry: () => route(),
   'close-sheet': () => closeSheet(),
   arcade: () => openArcade(),
@@ -308,8 +355,16 @@ const ACT = {
   resume: () => resumeSession(),
   review: () => startReview(),
   'play-daily': t => playQueue([{ g: +t.dataset.g, n: +t.dataset.n, label: t.dataset.l, sub: `Ayah ${t.dataset.a}` }]),
-  'play-surah': async t => { const n = +t.dataset.n, a = await getSurah(n), s = surahList[n - 1]; playQueue(a.map(x => ({ g: x.g, n, label: s.en, sub: `Ayah ${x.n} of ${s.count}` }))); },
-  'play-from': async t => { const n = +location.hash.split('/')[2], a = await getSurah(n), s = surahList[n - 1], start = a.findIndex(x => x.n === +t.dataset.a); playQueue(a.map(x => ({ g: x.g, n, label: s.en, sub: `Ayah ${x.n} of ${s.count}` })), Math.max(0, start)); },
+  'play-surah': t => { const n = +t.dataset.n; playQueue(surahItems(n, surahList), 0, { cont: n }); },
+  'listen-play': t => { const n = +t.dataset.n, cur = Player.q[Player.i]; if (cur && cur.n === n && Player.q.length) { togglePlayer(); } else playQueue(surahItems(n, surahList), 0, { cont: n }); setTimeout(() => $('#llist') && ($('#llist').innerHTML = listenRows()), 150); },
+  'listen-resume': () => { const L = listenState().last; if (L) playQueue(surahItems(L.n, surahList), Math.max(0, L.a - 1), { cont: L.n }); },
+  'listen-fav': t => { const L = listenState(), n = +t.dataset.n; L.favs = L.favs.includes(n) ? L.favs.filter(x => x !== n) : [...L.favs, n]; save(); t.classList.toggle('on', L.favs.includes(n)); if (lFilter === 'favs') $('#llist').innerHTML = listenRows(); },
+  lfilter: t => { lFilter = t.dataset.f; $$('[data-act=lfilter]').forEach(b => b.classList.toggle('on', b === t)); $('#llist').innerHTML = listenRows(); },
+  'listen-repeat': t => { S.settings.repeat = t.dataset.v; save(); $$('[data-act=listen-repeat]').forEach(b => b.classList.toggle('on', b === t)); },
+  'listen-rate': t => { setRate(+t.dataset.v); $$('[data-act=listen-rate]').forEach(b => b.classList.toggle('on', b === t)); },
+  'listen-sleep': t => { const m = +t.dataset.v; setSleep(m); $$('[data-act=listen-sleep]').forEach(b => b.classList.toggle('on', b === t)); toast(m ? `Sleep timer: ${m} min` : 'Sleep timer off', 'moon'); },
+  'reciter-pick': () => { const el = sheet(`<h3>Choose a reciter</h3><div class="opts col">${RECITERS.map(r => `<button class="opt ${S.settings.reciter === r.id ? 'right' : ''}" data-r="${r.id}"><span>${esc(r.n)}</span>${S.settings.reciter === r.id ? ic('check', 18) : ''}</button>`).join('')}</div>`); el.addEventListener('click', e => { const b = e.target.closest('[data-r]'); if (!b) return; S.settings.reciter = b.dataset.r; save(); closeSheet(); refresh(); }); },
+  'play-from': t => { const n = +location.hash.split('/')[2]; playQueue(surahItems(n, surahList), Math.max(0, +t.dataset.a - 1), { cont: n }); },
   learn: async t => { const n = +t.dataset.n, s = surahList[n - 1]; if (!unlocked(s)) return toast(`Reach level ${reqLevel(s.count)} to unlock`, 'lock'); try { startSurah(s, await getSurah(n)); } catch { toast('Could not load the surah. Check your connection.', 'info'); } },
   'start-next': async () => { const it = nextItem(surahList); if (!it) return; if (it.k === 'lesson') startLesson(it.id); else ACT.learn({ dataset: { n: it.n } }); },
   'recite-surah': async t => { const n = +t.dataset.n; try { const ays = await getSurah(n), s = surahList[n - 1]; if (t.dataset.m) openRecite(s, ays, { from: 1, to: Math.min(ays.length, 20), mastery: true }); else openRecite(s, ays); } catch { toast('Could not load the surah.', 'info'); } },
@@ -327,12 +382,12 @@ document.addEventListener('click', async e => {
   if (a === 'a-go') { step = t.dataset.s; renderAuth(); }
   else if (a === 'a-pick') { draft[t.dataset.k] = t.dataset.k === 'goalMin' ? +t.dataset.v : t.dataset.v; $$(`[data-act="a-pick"][data-k="${t.dataset.k}"]`).forEach(b => b.classList.toggle('on', b === t)); feel('tick'); }
   else if (a === 'a-level') { draft.level = t.dataset.l; $$('.lv').forEach(b => { b.classList.toggle('on', b === t); const c = b.querySelector('.ic.chk'); if (c) c.remove(); }); t.insertAdjacentHTML('beforeend', ic('check', 20, 'chk')); feel('tick'); }
-  else if (a === 'a-next1') { draft.name = val('p-name'); draft.age = +val('p-age'); if (!draft.name) return authErr('Please enter your name.'); if (!(draft.age >= 5 && draft.age <= 110)) return authErr('Please enter a valid age.'); if (draft.age < 13) return authErr('Iqra is for ages 13 and up. Younger learners can use it with a parent or guardian.'); if (!draft.gender) return authErr('Please choose an option.'); step = 's2'; renderAuth(); }
-  else if (a === 'a-placement') { const box = $('.auth-card'); runPlacement(box, { onCancel: () => { step = 's2'; renderAuth(); }, onDone: r => { draft.level = r.level; draft.leniency = r.leniency; draft.placed = r.scores; step = 's2'; renderAuth(); toast('Level set. You can still change it.', 'check'); } }); }
+  else if (a === 'a-next1') { draft.name = val('p-name'); draft.age = +val('p-age'); if (!draft.name) return authErr('Please enter your name.'); if (!(draft.age >= 1 && draft.age <= 120)) return authErr('Please enter a valid age.'); if (!draft.gender) return authErr('Please choose an option.'); step = 's2'; renderAuth(); if (!draft.placed && !draft.quizSkipped) startQuiz(); }
+  else if (a === 'a-placement') startQuiz();
   else if (a === 'a-next2') { if (!draft.level) return authErr('Pick where you are now.'); step = 's3'; renderAuth(); }
   else if (a === 'a-create') {
     const username = val('r-user').toLowerCase(), email = val('r-email'), password = $('#r-pw').value;
-    if (!$('#r-agree').checked) return authErr('Please confirm you are 13 or older and accept the Terms and Privacy Policy.');
+    if (!$('#r-agree').checked) return authErr('Please accept the Terms and Privacy Policy to continue.');
     if (!/^[a-z0-9_]{3,20}$/.test(username)) return authErr('Username: 3 to 20 letters, numbers or underscores.'); if (!/^\S+@\S+\.\S{2,}$/.test(email)) return authErr('Enter a valid email.'); if (password.length < 8) return authErr('Password needs 8+ characters.');
     t.disabled = true; t.textContent = 'Creating…';
     try { S.profile = { name: draft.name, age: draft.age, gender: draft.gender, level: draft.level, goalMin: draft.goalMin || 10 }; S.track = trackFor(draft.level); if (draft.level === 'fluent') S.settings.openAll = true; if (draft.leniency) S.settings.leniency = draft.leniency; if (draft.placed) S.profile.placement = { at: Date.now(), scores: draft.placed }; S.profile.agreedAt = Date.now(); S.updatedAt = Date.now(); await register({ username, email, password }); save(); await boot(); toast(`Welcome, ${draft.name}`, 'moon'); }
@@ -341,13 +396,15 @@ document.addEventListener('click', async e => {
     t.disabled = true; try { await login({ id: val('l-id'), password: $('#l-pw').value }); if (!S.profile) throw new Error('No profile found for this account on this device.'); await boot(); } catch (er) { t.disabled = false; authErr(er.message); }
   }
 });
+document.addEventListener('change', e => { if (e.target.dataset && 'agree' in e.target.dataset) { const g = $('#r-go'); if (g) g.disabled = !e.target.checked; } });
 document.addEventListener('input', e => {
+  if (e.target.id === 'lsearch') { lSearch = e.target.value; $('#llist').innerHTML = listenRows(); }
   if (e.target.id === 'qsearch') { qSearch = e.target.value; $('#qlist').innerHTML = listHTML(); }
   if (e.target.dataset.set === 'fontSize') { S.settings.fontSize = +e.target.value; $('#fso').textContent = e.target.value + 'px'; applyTheme(); }
 });
 document.addEventListener('change', e => {
   const k = e.target.dataset.set; if (!k) return; const el = e.target;
-  S.settings[k] = el.type === 'checkbox' ? el.checked : el.type === 'range' ? +el.value : el.value; if (k === 'sound' && el.checked) sfx('ok'); if (k === 'haptics' && el.checked) haptic('ok'); save();
+  S.settings[k] = el.type === 'checkbox' ? el.checked : el.type === 'range' ? +el.value : el.value; save();
 });
 
 // =====================================================================
@@ -358,3 +415,17 @@ document.addEventListener('change', e => {
   if (await restore() && S.profile) boot(); else { step = 'welcome'; renderAuth(); }
 })();
 void FOUNDATION_SURAHS;
+
+// ---------- back to top: shows on any long scroll, in pages and in full-screen lists
+(() => {
+  const b = document.createElement('button'); b.className = 'totop'; b.setAttribute('aria-label', 'Back to top'); b.innerHTML = ic('chevU', 22); document.body.append(b);
+  let cur = null; const root = () => document.scrollingElement || document.documentElement;
+  const hide = () => { b.classList.remove('on'); cur = null; };
+  document.addEventListener('scroll', e => {
+    const t = e.target === document ? root() : e.target; if (!t || t.scrollTop === undefined) return;
+    if (t.scrollTop > 480 && t.scrollHeight - t.clientHeight > 700) { cur = t; b.classList.add('on'); } else if (t === cur) hide();
+  }, true);
+  b.addEventListener('click', () => { const t = cur && cur.isConnected ? cur : root(); t.scrollTo({ top: 0, behavior: 'smooth' }); feel('tick'); });
+  window.addEventListener('hashchange', hide);
+  setInterval(() => { if (cur && (!cur.isConnected || cur.scrollTop <= 480)) hide(); }, 500);
+})();

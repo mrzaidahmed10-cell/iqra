@@ -35,7 +35,7 @@ All 114 surahs (Uthmani text, Sahih International translation, transliteration) 
 
 ## How it works
 
-- **Level and plan:** you pick where you are during setup (brand new, know the letters, read slowly, read fluently) and can change it any time in Account or on Home. That sets your plan: *Foundations* (letters, vowels, joining, first words, short surahs), *Reading*, *Tajweed* (11 rule lessons interleaved with surahs) or *Memorise*. Daily tasks change with the plan. Every lesson stays open in the Library.
+- **Level and plan:** you pick where you are during setup (brand new, know the letters, read slowly, read fluently) and can change it any time in Account or on Home. That sets your plan: *Foundations* (letters, vowels, joining, first words, short surahs), *Reading*, *Tajweed* (11 rule lessons interleaved with surahs) or *Memorize*. Daily tasks change with the plan. Every lesson stays open in the Library.
 - **Teach first, then test:** each lesson starts with teaching cards (letters, rules) or, for a surah, a word-by-word view with tap-to-hear audio, translation and transliteration. Practice only covers what was just taught: build the ayah (tap or drag words to reorder, Check, retry, reveal after two misses), fill the gap, meaning, listen, ayah order.
 - **Saves your place:** every step is saved, so you can leave mid lesson and resume from Home or the surah page. It syncs with your account.
 - **Recite and get graded:** any surah, any range up to 30 ayahs, from Home, every surah page or the end of a lesson. You get a grade, per-ayah accuracy, highlighted words, a replay of your recording and a hand-off to Nur. Mastery needs a clean recitation of a fully learned surah (surahs over 30 ayahs are mastered in parts of 20).
@@ -66,6 +66,6 @@ Speech-to-text hears words, not harakat. It can reliably catch skipped, swapped 
 ## Public-launch notes
 
 - `privacy.html` and `terms.html` are static pages (linked from signup and More). Edit the contact line (currently the GitHub issues page) and the governing-law clause before a wide launch, and have them reviewed if you collect more data than described.
-- Signup requires age 13+ and consent. Recordings are forwarded to Groq for transcription and are not stored by Iqra; Nur chats are stored inside the user's synced progress.
+- Signup requires accepting the Terms and Privacy Policy (existing users get a one-time prompt). There is no age limit. Recordings are forwarded to Groq for transcription and are not stored by Iqra; Nur chats are stored inside the user's synced progress.
 - Coach strictness (Gentle, Balanced, Strict) comes from the placement quiz and can be changed in Settings.
 - Reciters: Alafasy, Husary, Minshawi, Abdul Basit (alquran.cloud) and Yasser Ad-Dosary (everyayah.com, `ea:` ids).

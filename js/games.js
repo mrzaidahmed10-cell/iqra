@@ -46,7 +46,7 @@ function memory(root, end) {
     moves++; $('#mv', root).textContent = 'Moves ' + moves;
     const a = first; first = null;
     if (cards[a].id === cards[i].id) {
-      el(a).classList.add('done'); el(i).classList.add('done'); feel('ok'); found++;
+      el(a).classList.add('done'); el(i).classList.add('done'); feel('right'); found++;
       if (found === pairs.length) setTimeout(() => end('All matched', Math.max(10, 120 - moves * 5), Math.min(30, Math.max(5, Math.round(40 - moves * 1.5)))), 600);
     } else { lock = true; setTimeout(() => { el(a).classList.remove('open'); el(i).classList.remove('open'); lock = false; }, 800); }
   };

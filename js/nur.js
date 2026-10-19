@@ -1,9 +1,9 @@
-// Nur: a back-and-forth chat with your Quran coach (Groq on the server).
+// Nur: a back-and-forth chat with your Quran coach.
 import { S, $, $$, esc, api, Auth, save, sheet, closeSheet, ask, learnedTotal, masteredTotal, levelOf, feel, toast } from './core.js';
 import { ic } from './icons.js';
 import { TRACKS } from './content.js';
 
-const SUGGEST = ['What should I learn next?', 'Quiz me on what I know', 'How do I memorise faster?', 'Explain noon sakinah simply', 'What are the five pillars of Islam?'];
+const SUGGEST = ['What should I learn next?', 'Quiz me on what I know', 'How do I memorize faster?', 'Explain noon sakinah simply', 'What are the five pillars of Islam?'];
 
 // Escape first, then add a little formatting. Arabic runs get their own font and direction.
 export function md(t) {
@@ -32,7 +32,7 @@ export function openNur({ ask: first, extra } = {}) {
   const bubble = m => `<div class="msg ${m.r}"><div class="bub">${m.r === 'ai' ? md(m.t) : esc(m.t).replace(/\n/g, '<br>')}${m.d ? `<small class="disc">${DISC}</small>` : ''}</div></div>`;
   const scroll = () => list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
   function paint() {
-    const hello = `Assalamu alaykum${S.profile && S.profile.name ? ', ' + esc(S.profile.name) : ''}. I'm Nur. Ask me about letters, tajweed, a surah you're learning, or any Islamic question.</p><p class="muted small">Chats are processed by an AI provider. See the Privacy Policy.`;
+    const hello = `Assalamu alaykum${S.profile && S.profile.name ? ', ' + esc(S.profile.name) : ''}. I'm Nur. Ask me about letters, tajweed, a surah you're learning, or any Islamic question.`;
     list.innerHTML = (S.nur.length ? '' : `<div class="msg ai"><div class="bub"><p>${hello}</p></div></div>`) + S.nur.map(bubble).join('');
     sug.innerHTML = S.nur.length ? '' : SUGGEST.map(s => `<button type="button" data-s="${esc(s)}">${esc(s)}</button>`).join('');
     list.scrollTop = list.scrollHeight;
@@ -48,7 +48,7 @@ export function openNur({ ask: first, extra } = {}) {
     list.insertAdjacentHTML('beforeend', `<div class="msg ai" id="typing"><div class="bub typing"><i></i><i></i><i></i></div></div>`); scroll(); feel('tick');
     let reply, disc = false;
     try {
-      if (!Auth.groq) throw new Error('Nur needs the GROQ_API_KEY secret on your Cloudflare project. Once it is added, I can chat.');
+      if (!Auth.groq) throw new Error('Nur is unavailable right now. Please try again later.');
       const msgs = S.nur.slice(-14).map(m => ({ role: m.r === 'user' ? 'user' : 'assistant', content: m.t.slice(0, 1500) }));
       const j = await api('nur', 'POST', { messages: msgs, context: context() }); reply = j.reply; disc = !!j.disclaimer;
     } catch (e) { reply = e.message || 'I could not reach the server. Try again in a moment.'; }

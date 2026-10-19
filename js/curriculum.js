@@ -19,7 +19,7 @@ const AR = s => ({ ar: s });
 const groups = Array.from({ length: 7 }, (_, i) => LETTERS.slice(i * 4, i * 4 + 4));
 function letterSteps(gi) {
   const g = groups[gi], cards = [], qs = [];
-  cards.push({ t: 'card', big: g.map(l => l.c).join('  '), title: gi === 0 ? 'Arabic reads right to left' : 'Meet four new letters', body: `${gi === 0 ? 'The alphabet has 28 letters. ' : ''}In this lesson: ${g.map(l => l.n).join(', ')}. We will look at each one, then you will practise.`, ar: 1 });
+  cards.push({ t: 'card', big: g.map(l => l.c).join('  '), title: gi === 0 ? 'Arabic reads right to left' : 'Meet four new letters', body: `${gi === 0 ? 'The alphabet has 28 letters. ' : ''}In this lesson: ${g.map(l => l.n).join(', ')}. We will look at each one, then you will practice.`, ar: 1 });
   g.forEach(l => cards.push({ t: 'card', big: l.c, title: l.n, body: `Sounds like ${l.s}. Look for: ${l.d}.`, forms: formsOf(l), note: l.j ? '' : 'This letter does not connect to the one after it.', ar: 1 }));
   const others = LETTERS.filter(l => !g.includes(l));
   g.forEach(l => {
@@ -116,7 +116,7 @@ const STATIC = {
     title: 'Noon sakinah and tanween', sub: 'The four rules at a glance', icon: 'book',
     disclaimer: 1,
     cards: [
-      C('One sound, four behaviours', 'When a noon with sukoon (نْ) or any tanween is followed by a letter, how you say it depends on that letter. The four rules are idhaar, idghaam, iqlaab and ikhfaa.', { big: 'نْ  ـًـٌـٍ', ar: 1 }),
+      C('One sound, four behaviors', 'When a noon with sukoon (نْ) or any tanween is followed by a letter, how you say it depends on that letter. The four rules are idhaar, idghaam, iqlaab and ikhfaa.', { big: 'نْ  ـًـٌـٍ', ar: 1 }),
       C('Which letter decides?', 'Idhaar: ء هـ ع ح غ خ. Idghaam: ي ر م ل و ن. Iqlaab: ب. Ikhfaa: the other 15 letters.', { ex: ex(['ء ه ع ح غ خ', 'idhaar: clear'], ['ي ر م ل و ن', 'idghaam: merge'], ['ب', 'iqlaab: swap'], ['ت ث ج د ذ ز س ش ص ض ط ظ ف ق ك', 'ikhfaa: hide']) }),
     ],
     qs: () => [
@@ -268,7 +268,6 @@ export function lessonSteps(id) {
   if (id.startsWith('letters-')) return letterSteps(+id.split('-')[1] - 1);
   const d = STATIC[id]; if (!d) return [];
   const steps = d.cards.map(c => ({ ...c }));
-  if (d.disclaimer) steps.push({ t: 'card', title: 'A note on learning tajweed', body: DISCLAIMER });
   return steps.concat(shuf(d.qs()));
 }
 

@@ -134,7 +134,7 @@ export async function onRequest({ request, env, params }) {
 
 // ---------- Groq helpers ----------
 async function guard(request, env) {
-  if (!env.GROQ_API_KEY) return { res: J({ error: 'The AI coach is not configured yet (missing GROQ_API_KEY).' }, 503) };
+  if (!env.GROQ_API_KEY) return { res: J({ error: 'The coach is unavailable right now.' }, 503) };
   if (env.IQRA_KV) {
     const a = await authed(request, env);
     if (!a) return { res: J({ error: 'Please sign in again.' }, 401) };
@@ -185,7 +185,7 @@ async function coach(request, env) {
   };
   const lenient = { gentle: 'The student is a beginner. Be generous and encouraging. Mark real=true only for clearly wrong or skipped words; treat accent, small vowel slips and unclear articulation as NOT real. List at most 2 tajweed reminders.', strict: 'The student is advanced and wants exacting feedback. Flag clear letter substitutions, dropped or added letters and likely makhraj problems as real, and list up to 6 tajweed reminders.' }[b.leniency] || 'The student is intermediate. Be fair: mark clear word errors and clear letter substitutions as real, ignore transcription noise.';
   const g2 = await groqChat(env, { temperature: 0, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: COACH_SYSTEM + '\nStrictness: ' + lenient }, { role: 'user', content: JSON.stringify(payload) }] });
-  if (!g2.ok) return J({ error: 'Coach unavailable (' + g2.why + ')' }, 502);
+  if (!g2.ok) { console.error('coach', g2.why); return J({ error: 'The coach is unavailable right now. Please try again.' }, 502); }
   let out; try { out = JSON.parse(g2.text.replace(/^```json|```$/g, '')); } catch { return J({ error: 'Coach returned an unreadable answer' }, 502); }
   const str = (s, n = 200) => String(s ?? '').slice(0, n);
   return J({
@@ -215,7 +215,7 @@ async function groqChat(env, body) {
 }
 
 const NUR_SYSTEM = `You are Nur, a warm, knowledgeable Quran and Islam teacher inside a learning app called Iqra.
-You help with Arabic letters and reading, tajweed, memorisation technique, tafsir and the context of surahs and ayahs, and also general Islamic questions: beliefs, worship (prayer, fasting, zakat, Hajj), ethics, the life of the Prophet, history, and everyday practice.
+You help with Arabic letters and reading, tajweed, memorization technique, tafsir and the context of surahs and ayahs, and also general Islamic questions: beliefs, worship (prayer, fasting, zakat, Hajj), ethics, the life of the Prophet, history, and everyday practice.
 Answer Islamic questions directly and helpfully. Do not refuse because you are not a scholar. Give the mainstream, well-established answer first. Where scholars genuinely differ (for example between the four Sunni madhhabs), say so briefly and fairly instead of picking a side. Name sources (a surah and ayah, a hadith collection) only when you are confident of them. Never invent verses, hadith, rulings or attributions; if you are unsure, say so plainly.
 For a very personal or high-stakes situation (divorce, inheritance, a complex financial contract, a medical-religious dilemma) still give the general principles, then suggest asking a qualified scholar who can hear the full situation.
 Style: short and conversational (usually under 150 words), plain language, no lectures. Ask at most one follow-up question. When asked to quiz, ask ONE question at a time. Write Arabic with full diacritics when you quote it. Stay respectful of all schools; no sectarian attacks. If the question is unrelated to Islam or learning, steer back gently.
@@ -230,7 +230,7 @@ async function nur(request, env) {
   const c = b.context && typeof b.context === 'object' ? b.context : {};
   const ctx = JSON.stringify({ name: String(c.name || '').slice(0, 40), level: String(c.level || '').slice(0, 20), plan: String(c.track || '').slice(0, 30), appLevel: +c.appLevel || 1, ayahsLearned: +c.ayahsLearned || 0, surahsMastered: +c.surahsMastered || 0, lessonsDone: +c.lessonsDone || 0, looking_at: String(c.extra || '').slice(0, 400) });
   const g2 = await groqChat(env, { temperature: 0.5, max_tokens: 500, messages: [{ role: 'system', content: NUR_SYSTEM + '\nStudent context: ' + ctx }, ...msgs] });
-  if (!g2.ok) return J({ error: 'Nur is unavailable right now. (' + g2.why + ')' }, 502);
+  if (!g2.ok) { console.error('nur', g2.why); return J({ error: 'Nur is unavailable right now. Please try again in a moment.' }, 502); }
   let reply = g2.text.trim(); const disclaimer = /\[\[D\]\]\s*$/.test(reply); reply = reply.replace(/\s*\[\[D\]\]\s*/g, '').trim();
   return J({ reply: reply.slice(0, 2500), disclaimer });
 }

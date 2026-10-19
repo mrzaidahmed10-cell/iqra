@@ -75,15 +75,15 @@ export function viewFasting() {
 export function viewHadith() {
   const dayN = Math.floor(Date.now() / 864e5), h = HADITH[dayN % HADITH.length];
   return { html: `${back()}<h2>Hadith</h2><section class="card hadith-today"><small class="muted">Hadith of the day</small><p class="quote">“${esc(h.t)}”</p><small class="muted">${esc(h.s)}</small></section>
-    <p class="muted small">Plain-English summaries of well-known hadith. Always check the exact wording in the cited collection.</p>${HADITH.map((x, i) => `<article class="card hadith"><p>${esc(x.t)}</p><div class="row-between"><small class="muted">${esc(x.s)}</small><button class="icon-btn sm ${S.favs.includes(i) ? 'fav' : ''}" data-act="fav" data-i="${i}" aria-label="Favourite">${ic('heart', 18)}</button></div></article>`).join('')}` };
+    <p class="muted small">Plain-English summaries of well-known hadith. Always check the exact wording in the cited collection.</p>${HADITH.map((x, i) => `<article class="card hadith"><p>${esc(x.t)}</p><div class="row-between"><small class="muted">${esc(x.s)}</small><button class="icon-btn sm ${S.favs.includes(i) ? 'fav' : ''}" data-act="fav" data-i="${i}" aria-label="Favorite">${ic('heart', 18)}</button></div></article>`).join('')}` };
 }
 export function viewAdvice() {
   const cats = [...new Set(ADVICE.map(a => a.c))];
   return { html: `${back()}<h2>Learning advice</h2>${cats.map(c => `<h3 class="sec">${c}</h3>${ADVICE.filter(a => a.c === c).map(a => `<article class="card advice"><span class="ico">${ic(a.i, 20)}</span><div><b>${esc(a.t)}</b><p class="muted">${esc(a.d)}</p></div></article>`).join('')}`).join('')}` };
 }
 export function viewAbout() {
-  return { html: `${back()}<h2>About Iqra</h2><section class="card"><h3>How it works</h3><p>Pick your level and Iqra builds a path: letters, vowels and reading first, or tajweed and memorisation if you already read. Each lesson <b>teaches before it tests</b>, and your place is saved if you leave. Learn a surah in lessons of up to 20 ayahs, then recite it to be graded.</p></section>
-    <section class="card"><h3>Recitation grading and Nur</h3><p>Your recording is transcribed, compared word by word with the mushaf and reviewed by an AI for pronunciation and tajweed. Nur is a chat coach you can ask anything. Both are practice partners: fine details like exact madd length need a qualified teacher.</p><p class="muted small">AI coach: ${Auth.groq ? 'connected' : 'not connected'} · Cloud sync: ${Auth.remote ? 'on' : 'off'}</p></section>
+  return { html: `${back()}<h2>About Iqra</h2><section class="card"><h3>How it works</h3><p>Pick your level and Iqra builds a path: letters, vowels and reading first, or tajweed and memorization if you already read. Each lesson <b>teaches before it tests</b>, and your place is saved if you leave. Learn a surah in lessons of up to 20 ayahs, then recite it to be graded.</p></section>
+    <section class="card"><h3>Recitation grading and Nur</h3><p>Your recitation is compared word by word with the mushaf and reviewed for pronunciation and tajweed. Nur is a chat coach you can ask anything. Both are practice partners: fine details like exact madd length are best confirmed by a teacher.</p></section>
     <section class="card"><h3>Credits</h3><p class="muted small">Quran text, translation (Sahih International) and audio via alquran.cloud and the Islamic Network CDN. Word-by-word meanings via quran.com. Fonts: Amiri Quran, Bricolage Grotesque, Instrument Sans.</p></section>` };
 }
 
@@ -115,7 +115,7 @@ export function viewDhikr() {
 // ----- alphabet reference -----
 export function viewAlphabet() {
   return { html: `${back()}<h2>Arabic alphabet</h2><p class="muted">Tap a letter to see its sound and shapes. Arabic reads right to left.</p><div class="alpha" dir="rtl">${LETTERS.map((l, i) => `<button class="letter" data-act="alpha" data-i="${i}"><span class="ar">${l.c}</span><small>${l.n}</small></button>`).join('')}</div>
-    <div class="col-gap">${alphabetDone() ? `<p class="muted center">${ic('check', 16)} You completed the letters course.</p>` : `<button class="btn primary" data-act="start-lesson" data-id="letters-1">${ic('type', 18)} Start the letters course</button>`}<button class="btn" data-act="arcade">${ic('dice', 18)} Practise in the break room</button></div>` };
+    <div class="col-gap">${alphabetDone() ? `<p class="muted center">${ic('check', 16)} You completed the letters course.</p>` : `<button class="btn primary" data-act="start-lesson" data-id="letters-1">${ic('type', 18)} Start the letters course</button>`}<button class="btn" data-act="arcade">${ic('dice', 18)} Practice in the break room</button></div>` };
 }
 export function letterSheet(i) {
   const l = LETTERS[i];

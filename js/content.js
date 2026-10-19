@@ -36,15 +36,15 @@ export const FAST_TYPES = [
 
 export const LEVELS = [
   { id: 'new', t: 'Brand new', d: "I don't know the Arabic letters yet", icon: 'leaf', track: 'foundations' },
-  { id: 'letters', t: 'I know the letters', d: 'I can recognise them but not read words', icon: 'type', track: 'reading' },
+  { id: 'letters', t: 'I know the letters', d: 'I can recognize them but not read words', icon: 'type', track: 'reading' },
   { id: 'slow', t: 'I read slowly', d: 'I can read, and want better tajweed', icon: 'book', track: 'tajweed' },
-  { id: 'fluent', t: 'I read fluently', d: 'I want to memorise and perfect it', icon: 'crown', track: 'hifz' },
+  { id: 'fluent', t: 'I read fluently', d: 'I want to memorize and perfect it', icon: 'crown', track: 'hifz' },
 ];
 export const TRACKS = {
   foundations: { n: 'Foundations', d: 'Letters, vowels, then your first short surahs', icon: 'leaf' },
   reading: { n: 'Reading', d: 'Vowels, joining, then real Quran words', icon: 'type' },
-  tajweed: { n: 'Tajweed', d: 'The rules of recitation, with memorisation', icon: 'book' },
-  hifz: { n: 'Memorise', d: 'Learn, revise and recite whole surahs', icon: 'crown' },
+  tajweed: { n: 'Tajweed', d: 'The rules of recitation, with memorization', icon: 'book' },
+  hifz: { n: 'Memorize', d: 'Learn, revise and recite whole surahs', icon: 'crown' },
 };
 
 // c letter, n name, h sound hint, s short sound, d how to spot it, j joins to the next letter
@@ -91,7 +91,7 @@ export const DHIKR = [
   { ar: 'أَسْتَغْفِرُ ٱللَّٰهَ', en: 'Astaghfirullah', goal: 100 },
 ];
 
-// Well-known hadith, summarised in plain English. Always verify wording against the cited collection.
+// Well-known hadith, summarized in plain English. Always verify wording against the cited collection.
 export const HADITH = [
   { t: 'Actions are judged by intentions, and everyone will get what they intended.', s: 'Bukhari 1, Muslim 1907' },
   { t: 'The best among you are those who learn the Quran and teach it.', s: 'Bukhari 5027' },

@@ -31,10 +31,10 @@ const THEME_MAP = { emerald: 'malachite', midnight: 'lapis', rose: 'madder', san
 export const trackFor = level => (LEVELS.find(l => l.id === level) || LEVELS[0]).track;
 export const defaultState = () => ({
   updatedAt: 0, profile: null, track: 'foundations',
-  settings: { translation: true, translit: false, fontSize: 30, reciter: 'ar.alafasy', sound: true, haptics: true, openAll: false, theme: 'lapis', avatar: 'moon', mode: 'auto', rate: 1, leniency: 'balanced' },
+  settings: { autoNext: true, repeat: 'off', translation: true, translit: false, fontSize: 30, reciter: 'ar.alafasy', sound: true, haptics: true, openAll: false, theme: 'lapis', avatar: 'moon', mode: 'auto', rate: 1, leniency: 'balanced' },
   xp: 0, coins: 0, streak: 0, bestStreak: 0, lastActive: '', daily: {}, surahs: {}, badges: {}, lessons: {}, session: null, recites: [], nur: [],
   owned: { themes: ['lapis'], avatars: ['moon'] }, fasts: {}, dhikr: { total: 0, idx: 0, count: 0 },
-  favs: [], sessions: 0, perfects: 0, gamesPlayed: 0,
+  favs: [], listen: { last: null, recents: [], favs: [] }, sessions: 0, perfects: 0, gamesPlayed: 0,
 });
 export const S = {};
 function merge(base, n) {
@@ -124,7 +124,7 @@ export const questsNow = () => QUESTS_BY[track()] || QUESTS_BY.foundations;
 function claimQuests() {
   const d = day(); let got = 0;
   for (const q of questsNow()) if (d[q.k] >= q.g && !d.claimed[q.id]) { d.claimed[q.id] = 1; S.coins += q.c; got += q.c; }
-  if (got) setTimeout(() => { toast(`Quest complete. +${got} coins`, 'target'); sfx('ok'); }, 500);
+  if (got) setTimeout(() => { toast(`Quest complete. +${got} coins`, 'target'); sfx('done'); }, 500);
 }
 export const BADGES = [
   { id: 'first', i: 'leaf', n: 'First steps', d: 'Finish your first lesson', ok: s => s.sessions >= 1 },
@@ -162,7 +162,7 @@ export function reward({ xp = 0, coins = 0, streak = true } = {}) {
   save();
   const after = levelOf(S.xp);
   if (after > before) { sfx('lvl'); burst(); setTimeout(() => toast(`Level ${after}`, 'trophy'), 300); }
-  badges.forEach((b, i) => setTimeout(() => toast(`Badge: ${b.n}`, b.i), 900 + i * 700));
+  badges.forEach((b, i) => setTimeout(() => { toast(`Badge: ${b.n}`, b.i); sfx('badge'); haptic('badge'); }, 900 + i * 700));
   return { leveled: after > before ? after : 0, badges };
 }
 
@@ -252,13 +252,15 @@ const SFX = {
   done: t => [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => tone(f, t + i * .09, .9, { gain: .05, glass: .25 })),
   lvl: t => [523.25, 659.25, 783.99, 1046.5, 1318.5].forEach((f, i) => tone(f, t + i * .1, 1.1, { gain: .05, glass: .3 })),
 };
-SFX.pop = SFX.tap; SFX.win = SFX.done; SFX.close = t => tone(700, t, .2, { gain: .025, to: 500, lp: 2500, attack: .02 });
+SFX.right = SFX.ok; SFX.win = SFX.done;
+SFX.badge = t => { [392, 587.33, 783.99].forEach((f, i) => tone(f, t + i * .12, 1.2, { gain: .045, glass: .35 })); tone(1567.98, t + .4, 1.4, { gain: .03, glass: .5 }); };
+const VOICED = new Set(['right', 'done', 'lvl', 'badge', 'win']); // only achievements and correct answers make a sound SFX.close = t => tone(700, t, .2, { gain: .025, to: 500, lp: 2500, attack: .02 });
 export function sfx(kind) {
-  if (!S.settings.sound) return;
+  if (!S.settings.sound || !VOICED.has(kind)) return;
   try { const c = audioCtx(); if (c && SFX[kind]) SFX[kind](c.currentTime + .005); } catch { /* audio blocked */ }
 }
-const BUZZ = { tick: 6, tap: 10, ok: [12, 40, 18], bad: [30, 40, 30], done: [15, 50, 15, 50, 30], lvl: [20, 40, 20, 40, 40] };
-export function haptic(kind = 'tap') { if (S.settings.haptics !== false && navigator.vibrate) { try { navigator.vibrate(BUZZ[kind] || 8); } catch { /* ignore */ } } }
+const BUZZ = { right: [12, 40, 18], bad: [30, 40, 30], done: [15, 50, 15, 50, 30], lvl: [20, 40, 20, 40, 40], badge: [15, 50, 15, 50, 30] };
+export function haptic(kind = 'tap') { if (S.settings.haptics !== false && navigator.vibrate && BUZZ[kind]) { try { navigator.vibrate(BUZZ[kind]); } catch { /* ignore */ } } }
 export const feel = (kind, h) => { sfx(kind); haptic(h || kind); };
 document.addEventListener('pointerdown', () => { if (S.settings.sound) audioCtx(); }, { once: true, capture: true });
 
@@ -268,14 +270,43 @@ export const audioUrl = (g, reciter = S.settings.reciter) => {
   if (reciter && reciter.startsWith('ea:')) { const [s, a] = surahAyah(g), p = x => String(x).padStart(3, '0'); return `https://everyayah.com/data/${reciter.slice(3)}/${p(s)}${p(a)}.mp3`; }
   return `https://cdn.islamic.network/quran/audio/128/${reciter}/${g}.mp3`;
 };
-export const Player = { q: [], i: -1, playing: false, loading: false };
+export const Player = { q: [], i: -1, playing: false, loading: false, cont: 0 };
+export const listenState = () => (S.listen = S.listen || { last: null, recents: [], favs: [] });
+export const surahStart = n => 1 + AYAH_COUNTS.slice(0, n - 1).reduce((a, b) => a + b, 0);
+/** Queue items for a whole surah, built offline from ayah counts. */
+export function surahItems(n, names) {
+  const nm = (names && names[n - 1] && names[n - 1].en) || (list && list[n - 1] && list[n - 1].en) || 'Surah ' + n, c = AYAH_COUNTS[n - 1], g0 = surahStart(n);
+  return Array.from({ length: c }, (_, i) => ({ g: g0 + i, n, a: i + 1, label: nm, sub: `Ayah ${i + 1} of ${c}` }));
+}
+function noteListen(it) {
+  if (!it || !it.n) return; const L = listenState(); L.last = { n: it.n, a: it.a || 1, at: Date.now() };
+  if (L.recents[0] !== it.n) { L.recents = [it.n, ...L.recents.filter(x => x !== it.n)].slice(0, 8); }
+  save();
+}
+let sleepT = null, sleepEnd = 0;
+export const sleepLeft = () => (sleepEnd ? Math.max(0, sleepEnd - Date.now()) : 0);
+export function setSleep(min) {
+  clearTimeout(sleepT); sleepT = null; sleepEnd = 0;
+  if (min > 0) { sleepEnd = Date.now() + min * 6e4; sleepT = setTimeout(() => { sleepEnd = 0; sleepT = null; if (pel && !pel.paused) pel.pause(); emitBus('sleep', 0); }, min * 6e4); }
+  emitBus('sleep', min);
+}
 let pel = null, pf = null, perr = 0, clip = null, clipDone = null;
 const snap = () => ({ playing: Player.playing, loading: Player.loading, i: Player.i, len: Player.q.length, cur: Player.q[Player.i] || null });
 const pemit = () => { emitBus('player', snap()); emitBus('audio', Player.playing || Player.loading ? (Player.q[Player.i] || {}).g || null : null); updateMedia(); };
 function playerEl() {
   if (pel) return pel;
   pel = new Audio(); pel.preload = 'auto';
-  pel.addEventListener('ended', () => { perr = 0; day().listens++; save(); Player.i + 1 < Player.q.length ? loadAt(Player.i + 1) : stopPlayer(true); });
+  pel.addEventListener('ended', () => {
+    perr = 0; day().listens++; save();
+    const mode = S.settings.repeat || 'off';
+    if (mode === 'ayah') return loadAt(Player.i);
+    if (Player.i + 1 < Player.q.length) return loadAt(Player.i + 1);
+    if (Player.cont) { // keep listening: repeat this surah or roll into the next one
+      if (mode === 'surah') return loadAt(0);
+      if (S.settings.autoNext !== false && Player.cont < 114) { Player.cont++; const more = surahItems(Player.cont); Player.q = Player.q.concat(more); return loadAt(Player.i + 1); }
+    }
+    stopPlayer(true);
+  });
   pel.addEventListener('error', () => { if (!Player.q.length) return; if (++perr > 2) { stopPlayer(); toast('Audio could not be loaded. Check your connection.', 'volumeOff'); } else if (Player.i + 1 < Player.q.length) loadAt(Player.i + 1); else stopPlayer(); });
   pel.addEventListener('playing', () => { Player.playing = true; Player.loading = false; pemit(); });
   pel.addEventListener('pause', () => { if (Player.q.length) { Player.playing = false; pemit(); } });
@@ -285,13 +316,13 @@ function playerEl() {
 }
 function loadAt(i) {
   const it = Player.q[i]; if (!it) return stopPlayer(true);
-  Player.i = i; Player.loading = true; const el = playerEl();
+  Player.i = i; Player.loading = true; const el = playerEl(); noteListen(it);
   el.src = audioUrl(it.g); el.playbackRate = S.settings.rate || 1; el.play().catch(() => { Player.loading = false; Player.playing = false; pemit(); });
   pemit();
   const nx = Player.q[i + 1]; if (nx) { pf = pf || new Audio(); pf.preload = 'auto'; pf.src = audioUrl(nx.g); }
 }
 /** items: [{g, label, sub}] */
-export function playQueue(items, start = 0) { stopClip(); Player.q = items.slice(); perr = 0; loadAt(start); }
+export function playQueue(items, start = 0, opts = {}) { stopClip(); Player.q = items.slice(); Player.cont = opts.cont || 0; perr = 0; loadAt(start); }
 export const playAyah = (g, label = '', sub = '') => playQueue([{ g, label, sub }]);
 export function togglePlayer() { const el = playerEl(); if (!Player.q.length) return; if (el.paused) el.play().catch(() => {}); else el.pause(); }
 export const nextAyah = () => { if (Player.i + 1 < Player.q.length) loadAt(Player.i + 1); };
@@ -299,7 +330,7 @@ export const prevAyah = () => { const el = playerEl(); if (el.currentTime > 3 ||
 export function seekPlayer(f) { const el = playerEl(); if (el.duration) el.currentTime = el.duration * Math.max(0, Math.min(1, f)); }
 export function setRate(r) { S.settings.rate = r; save(); if (pel) pel.playbackRate = r; }
 export function stopPlayer() {
-  Player.q = []; Player.i = -1; Player.playing = false; Player.loading = false;
+  Player.q = []; Player.i = -1; Player.playing = false; Player.loading = false; Player.cont = 0;
   if (pel) { pel.pause(); pel.removeAttribute('src'); pel.load(); }
   pemit();
 }

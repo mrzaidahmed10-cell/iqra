@@ -1,4 +1,4 @@
-// Lesson engine: teach first, then practise. Every advance is saved so a lesson can be resumed.
+// Lesson engine: teach first, then practice. Every advance is saved so a lesson can be resumed.
 import {
   S, $, $$, esc, toAr, shuffle, pick, sleep, wordsOf, day, sr, markLearned, reward, save, sheet, closeSheet, toast, feel, sfx, haptic,
   getSurah, getSurahList, getWords, playClip, stopClip, audioUrl, lessonDone, nextItem, dueReviews, bus, allLessonIds,
@@ -158,7 +158,7 @@ function open(sess, resumed) {
     $$('.opt', el).forEach(b => b.addEventListener('click', () => {
       if (locked) return; locked = true; const ok = isRight(+b.dataset.i); count(ok);
       $$('.opt', el).forEach(x => { x.disabled = true; if (isRight(+x.dataset.i)) x.classList.add('right'); });
-      if (!ok) b.classList.add('wrong'); feel(ok ? 'ok' : 'bad'); feedback(ok, ok ? (why || 'Correct') : `Answer: ${esc(rightText())}`); nextBtn();
+      if (!ok) b.classList.add('wrong'); feel(ok ? 'right' : 'bad'); feedback(ok, ok ? (why || 'Correct') : `Answer: ${esc(rightText())}`); nextBtn();
     }));
   }
   const head = (s, ay) => `<small class="kicker">${esc(NAMES[s.n] || '')} · ayah ${ay.n}</small>`;
@@ -200,7 +200,7 @@ function open(sess, resumed) {
         el.addEventListener('click', e => { const b = e.target.closest('.sw'); if (!b || done) return; feel('tick'); clearFb(); move(b, b.parentElement === bank ? ans : bank); });
         st.check = () => {
           const mine = seq(), okAll = mine.every((x, p) => txt(x) === txt(p)); const wrongAt = mine.map((x, p) => txt(x) !== txt(p));
-          if (okAll) { done = true; count(misses === 0); $$('.sw', ans).forEach(x => x.classList.add('right')); feel('ok'); feedback(true, misses ? 'Correct' : 'Perfect'); nextBtn(); return; }
+          if (okAll) { done = true; count(misses === 0); $$('.sw', ans).forEach(x => x.classList.add('right')); feel('right'); feedback(true, misses ? 'Correct' : 'Perfect'); nextBtn(); return; }
           misses++; if (misses === 1) count(false); feel('bad'); $$('.sw', ans).forEach((x, p) => x.classList.toggle('bad', wrongAt[p])); ans.classList.add('shake'); setTimeout(() => ans.classList.remove('shake'), 400);
           feedback(false, misses >= 2 ? 'Still not right. You can reveal the answer.' : 'Not quite. Fix the highlighted words and check again.');
           if (misses >= 2) { st.reveal = true; setGo('Show answer', false, 'reveal'); }
@@ -251,7 +251,7 @@ function open(sess, resumed) {
         });
         st.check = () => {
           const mine = seq(), ok = mine.every((x, p) => x === p);
-          if (ok) { done = true; count(misses === 0); $$('.sw', vl).forEach(x => x.classList.add('right')); feel('ok'); feedback(true, 'Correct order'); nextBtn(); return; }
+          if (ok) { done = true; count(misses === 0); $$('.sw', vl).forEach(x => x.classList.add('right')); feel('right'); feedback(true, 'Correct order'); nextBtn(); return; }
           misses++; if (misses === 1) count(false); feel('bad'); $$('.sw', vl).forEach((x, p) => x.classList.toggle('bad', +x.dataset.w !== p)); vl.classList.add('shake'); setTimeout(() => vl.classList.remove('shake'), 400);
           feedback(false, misses >= 2 ? 'Still off. You can reveal the answer.' : 'Not quite. Adjust the highlighted ayahs.'); if (misses >= 2) setGo('Show answer', false, 'reveal');
         };
@@ -264,23 +264,23 @@ function open(sess, resumed) {
 
   // ---------- completion
   function complete() {
-    stopClip(); const total = sess.ok + sess.bad, acc = total ? sess.ok / total : 1, stars = acc >= .9 ? 3 : acc >= .7 ? 2 : 1;
-    const gain = { xp: sess.ok * 4 + 20 + stars * 5 + (sess.kind === 'review' ? 10 : 0), coins: 5 + stars * 3 };
-    if (sess.kind === 'lesson') S.lessons[sess.id] = { at: Date.now(), stars: Math.max(stars, (S.lessons[sess.id] || {}).stars || 0) };
+    stopClip(); const total = sess.ok + sess.bad, acc = total ? sess.ok / total : 1, mastered = acc >= .95, passed = sess.kind === 'review' || acc >= .7, stars = mastered ? 3 : passed ? 2 : 1;
+    const gain = passed ? { xp: sess.ok * 4 + 20 + stars * 5 + (sess.kind === 'review' ? 10 : 0), coins: 5 + stars * 3 } : { xp: sess.ok * 2, coins: 0 };
+    if (sess.kind === 'lesson' && passed) S.lessons[sess.id] = { at: Date.now(), stars: Math.max(stars, (S.lessons[sess.id] || {}).stars || 0) };
     if (sess.kind === 'review') { day().reviews++; (sess.rvDone || []).forEach(x => { const r = sr(x.n); r.rv[x.a] = Date.now(); }); } else day().lessons++;
     if (sess.kind !== 'review') { S.sessions++; if (stars === 3) S.perfects++; }
     const secs = Math.round((Date.now() - sess.started) / 1000);
     const r = reward(gain); S.session = null; save(); sfx('done'); haptic('done');
     const surah = sess.n; const rec = surah ? sr(surah) : null, canMaster = rec && rec.done && !rec.mastered;
     const svgStar = on => `<svg viewBox="0 0 24 24" class="star ${on ? 'on' : ''}"><path d="m12 3.2 2.6 5.5 6 .8-4.4 4.2 1.1 6-5.3-2.9-5.3 2.9 1.1-6L3.4 9.5l6-.8z"/></svg>`;
-    stage.classList.remove('enter'); stage.innerHTML = `<div class="done"><div class="stars">${[1, 2, 3].map(i => svgStar(i <= stars)).join('')}</div><h2 data-focus>${sess.kind === 'review' ? 'Revision complete' : 'Lesson complete'}</h2><p class="muted">${esc(sess.title)}</p>
+    stage.classList.remove('enter'); stage.innerHTML = `<div class="done"><div class="stars">${[1, 2, 3].map(i => svgStar(i <= stars)).join('')}</div><h2 data-focus>${sess.kind === 'review' ? 'Revision complete' : mastered ? 'Mastered' : passed ? 'Lesson passed' : 'Not quite yet'}</h2>${!passed ? `<p class="muted">You need 70% to move on. You got ${Math.round(acc * 100)}%. Try it again, you have the material fresh.</p>` : ''}<p class="muted">${esc(sess.title)}</p>
       <div class="stat-row"><div><b>+${gain.xp}</b><small>XP</small></div><div><b>+${gain.coins}</b><small>coins</small></div><div><b>${Math.round(acc * 100)}%</b><small>accuracy</small></div><div><b>${Math.max(1, Math.round(secs / 60))}m</b><small>time</small></div></div>
       ${r.leveled ? `<p class="lvl-line">${ic('trophy', 18)} Level ${r.leveled} reached</p>` : ''}${sess.learned.length ? `<p class="muted">${sess.learned.length} ayah${sess.learned.length > 1 ? 's' : ''} added to what you know.</p>` : ''}</div>`;
     void stage.offsetWidth; stage.classList.add('enter'); stage.scrollTop = 0; $('[data-focus]', stage)?.focus({ preventScroll: true });
     $('.l-bar i', ov).style.width = '100%'; clearFb();
     const nx = nextItem(window.__surahList || []);
     const foot = $('.l-foot', ov);
-    foot.innerHTML = `<div class="col-gap">${surah ? `<button class="btn primary big" data-k="recite">${ic('mic', 18)} ${canMaster ? 'Recite for mastery' : 'Recite what you learned'}</button>` : ''}${nx && sess.kind !== 'review' ? `<button class="btn ${surah ? '' : 'primary big'}" data-k="next">${nx.k === 'lesson' ? 'Next lesson' : 'Next surah'}</button>` : ''}<div class="row-gap"><button class="btn ghost grow" data-k="break">${ic('dice', 16)} Take a break</button><button class="btn ghost grow" data-k="finish">Done</button></div></div>`;
+    foot.innerHTML = `<div class="col-gap">${surah && passed ? `<button class="btn primary big" data-k="recite">${ic('mic', 18)} ${canMaster ? 'Recite for mastery' : 'Recite what you learned'}</button>` : ''}${!passed ? `<button class="btn primary big" data-k="retry">${ic('repeat', 18)} Try again</button>` : ''}${nx && sess.kind !== 'review' && passed ? `<button class="btn ${surah ? '' : 'primary big'}" data-k="next">${nx.k === 'lesson' ? 'Next lesson' : 'Next surah'}</button>` : ''}<div class="row-gap"><button class="btn ghost grow" data-k="break">${ic('dice', 16)} Take a break</button><button class="btn ghost grow" data-k="finish">Done</button></div></div>`;
     st.sess = { surah, from: sess.from, to: sess.to, canMaster };
   }
 
@@ -293,6 +293,7 @@ function open(sess, resumed) {
     else if (k === 'reveal') { st.revealFn && st.revealFn(); }
     else if (k === 'exit') exit();
     else if (k === 'finish') close();
+    else if (k === 'retry') { const again = { ...sess }; close(); setTimeout(() => open(again, false), 320); }
     else if (k === 'break') openArcade();
     else if (k === 'next') { close(); setTimeout(() => window.dispatchEvent(new Event('iqra-next')), 320); }
     else if (k === 'recite') { const x = st.sess; const list = await getSurahList(); const ays = await ayahsOf(x.surah); close(); setTimeout(() => openRecite(list[x.surah - 1], ays, { from: x.canMaster ? 1 : x.from, to: x.canMaster ? ays.length : x.to, mastery: x.canMaster }), 320); }
