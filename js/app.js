@@ -9,6 +9,7 @@ import { LEVELS, TRACKS, FOUNDATION_SURAHS, RECITERS } from './content.js';
 import { UNITS, lessonMeta } from './curriculum.js';
 import { startLesson, startSurah, startReview, resumeSession, hasSession, sessionInfo } from './lesson.js';
 import { openRecite, gradeOf } from './recite.js';
+import * as HL from './halal.js';
 import { openNur } from './nur.js';
 import { openArcade } from './games.js';
 import { back, ring, val, title, getErr, timers, clearTimers, refresh, lrow } from './ui.js';
@@ -74,7 +75,7 @@ const NAV = [['home', 'Home', 'home'], ['quran', 'Quran', 'book'], ['progress', 
 async function boot() {
   document.body.classList.remove('authing'); applyTheme();
   app.innerHTML = `<main id="view" class="view"></main><div id="mini" class="mini" hidden></div>
-    <nav class="nav" aria-label="Main"><span class="nav-glass"></span><span class="nav-pill"></span>${NAV.map(n => `<a href="#/${n[0]}" data-tab="${n[0]}"><span class="ni">${ic(n[2], 22)}</span><span class="nl">${n[1]}</span></a>`).join('')}</nav>`;
+    <nav class="nav" aria-label="Main"><span class="nav-glass"></span><span class="nav-pill"></span>${NAV.map(n => `<a href="#/${n[0]}" data-tab="${n[0]}"><span class="ni">${ic(n[2], 20)}</span><span class="nl">${n[1]}</span></a>`).join('')}</nav>`;
   initNav(); renderMini();
   try { surahList = await getSurahList(); } catch { surahList = []; }
   window.__surahList = surahList;
@@ -157,7 +158,7 @@ bus.addEventListener('audio', e => { $$('.ayah.playing').forEach(x => x.classLis
 // ---------- router
 const VIEWS = {
   home: viewHome, path: viewPath, quran: viewQuran, listen: viewListen, surah: viewSurah, progress: viewProgress, more: viewMore,
-  account: P.viewAccount, settings: P.viewSettings, shop: P.viewShop, fasting: P.viewFasting, hadith: P.viewHadith, advice: P.viewAdvice, prayer: P.viewPrayer, dhikr: P.viewDhikr, alphabet: P.viewAlphabet, about: P.viewAbout,
+  account: P.viewAccount, settings: P.viewSettings, shop: P.viewShop, fasting: P.viewFasting, hadith: P.viewHadith, advice: P.viewAdvice, prayer: P.viewPrayer, dhikr: P.viewDhikr, alphabet: P.viewAlphabet, about: P.viewAbout, halal: HL.viewHalal,
 };
 async function route(keep = false) {
   const view = $('#view'); if (!view) return;
@@ -206,7 +207,7 @@ async function viewHome() {
     ${!p.placement && !p.placementLater ? `<section class="card up plc-nudge"><div class="up-h"><span class="ico big">${ic('compass', 22)}</span><div><small class="muted">Recommended</small><h3>Find your level</h3><p class="muted">A 5 minute quiz tunes your lessons and how strict your recitation coach is.</p></div></div><div class="row-gap"><button class="btn primary grow" data-act="placement">Take the quiz</button><button class="btn ghost" data-act="plc-later">Not now</button></div></section>` : ''}
     ${upNext()}
     ${due >= 4 ? `<section class="card up"><div class="up-h"><span class="ico big">${ic('repeat', 22)}</span><div><small class="muted">Revision</small><h3>${due} ayahs ready to refresh</h3><p class="muted">A quick session keeps them from fading.</p></div></div><button class="btn big" data-act="review">Revise now</button></section>` : ''}
-    <section class="tiles"><button class="tile" data-act="recite-pick"><span class="ico">${ic('mic', 22)}</span><b>Recite</b><small>Get graded</small></button><button class="tile" data-act="nur"><span class="ico">${ic('message', 22)}</span><b>Ask Nur</b><small>Your coach</small></button><button class="tile" data-act="arcade"><span class="ico">${ic('dice', 22)}</span><b>Break room</b><small>Calm games</small></button></section>
+    <section class="tiles"><button class="tile" data-act="recite-pick"><span class="ico">${ic('mic', 22)}</span><b>Recite</b><small>Get graded</small></button><button class="tile" data-act="nur"><span class="ico">${ic('message', 22)}</span><b>Ask Nur</b><small>Your coach</small></button><button class="tile" data-act="arcade"><span class="ico">${ic('dice', 22)}</span><b>Games</b><small>Calm break</small></button><a class="tile" href="#/more/halal"><span class="ico">${ic('scan', 22)}</span><b>Halal</b><small>Scan food</small></a></section>
     <section class="card"><div class="row-between"><h3>Today's tasks</h3><small class="muted">resets at midnight</small></div>${questsNow().map(q => { const v = Math.min(q.g, d[q.k] || 0); return `<div class="quest ${v >= q.g ? 'done' : ''}"><span class="qi">${ic(v >= q.g ? 'check' : 'target', 16)}</span><div class="grow"><b>${q.t}</b><div class="progress thin"><i style="width:${v / q.g * 100}%"></i></div></div><small>${ic('coin', 12)} ${q.c}</small></div>`; }).join('')}</section>
     <section class="card daily" id="daily"><small class="muted">Ayah of the day</small><div class="skeleton"></div></section>`,
     after: () => { loadDaily(); requestAnimationFrame(() => requestAnimationFrame(() => { const a = $('#aprog'); if (a) a.setAttribute('stroke-dashoffset', 100 * (1 - +a.dataset.p)); })); },
@@ -333,10 +334,15 @@ async function viewProgress() {
 // More
 // =====================================================================
 function viewMore() {
-  const rows = [['account', 'user', 'Account', 'Profile, level and sign-in'], ['path', 'route', 'Your path', 'Lessons and library'], ['shop', 'bag', 'Rewards', `${S.coins} coins to spend`], ['fasting', 'moon', 'Fasting log', 'Track your fasts'], ['hadith', 'quote', 'Hadith', 'Daily wisdom'], ['advice', 'bulb', 'Learning advice', 'Memorization tips'],
-    ['prayer', 'dome', 'Prayer times', 'Next prayer countdown'], ['dhikr', 'beads', 'Dhikr counter', 'Tasbih'], ['alphabet', 'type', 'Arabic alphabet', 'Letters and sounds'], ['settings', 'settings', 'Settings', 'Appearance, sound, reciter'], ['about', 'info', 'About Iqra', 'How it works'], ['privacy', 'shield', 'Privacy policy', 'How your data is used'], ['terms', 'file', 'Terms of use', 'The rules of the app']];
+  const G = [
+    ['Learn', [['path', 'route', 'Your path', 'Lessons and library'], ['alphabet', 'type', 'Arabic alphabet', 'Letters and sounds'], ['advice', 'bulb', 'Learning advice', 'Memorization tips']]],
+    ['Daily life', [['halal', 'scan', 'Halal scanner', 'Scan a barcode to check ingredients'], ['prayer', 'dome', 'Prayer times', 'Next prayer countdown'], ['dhikr', 'beads', 'Dhikr counter', 'Tasbih'], ['fasting', 'moon', 'Fasting log', 'Track your fasts'], ['hadith', 'quote', 'Hadith', 'Daily wisdom']]],
+    ['You', [['account', 'user', 'Account', 'Profile, level and sign-in'], ['shop', 'bag', 'Rewards', `${S.coins} coins to spend`], ['settings', 'settings', 'Settings', 'Appearance, sound, reciter']]],
+    ['About', [['about', 'info', 'About Iqra', 'How it works'], ['privacy', 'shield', 'Privacy policy', 'How your data is used'], ['terms', 'file', 'Terms of use', 'The rules of the app']]],
+  ];
+  const href = k => k === 'path' ? '#/path' : k === 'privacy' || k === 'terms' ? `${k}.html` : `#/more/${k}`;
   return { html: `<header class="top"><h1>More</h1></header><button class="card nur-card" data-act="nur"><span class="ico big">${ic('sparkle', 22)}</span><div class="grow"><b>Chat with Nur</b><small class="muted">Ask about letters, tajweed or your next step</small></div>${ic('chevR', 18, 'dim')}</button>
-    <div class="card list">${rows.map(r => lrow(r[1], r[2], r[3], r[0] === 'path' ? '#/path' : r[0] === 'privacy' || r[0] === 'terms' ? `${r[0]}.html` : `#/more/${r[0]}`)).join('')}</div>` };
+    ${G.map(g => `<h3 class="grp">${g[0]}</h3><div class="card list">${g[1].map(r => lrow(r[1], r[2], r[3], href(r[0]))).join('')}</div>`).join('')}` };
 }
 
 // =====================================================================
@@ -344,6 +350,7 @@ function viewMore() {
 // =====================================================================
 const ACT = {
   ...P.PAGE_ACT,
+  ...HL.HALAL_ACT,
   'plc-later': () => { S.profile.placementLater = Date.now(); save(); refresh(); },
   retry: () => route(),
   'close-sheet': () => closeSheet(),

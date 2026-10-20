@@ -69,3 +69,7 @@ Speech-to-text hears words, not harakat. It can reliably catch skipped, swapped 
 - Signup requires accepting the Terms and Privacy Policy (existing users get a one-time prompt). There is no age limit. Recordings are forwarded to Groq for transcription and are not stored by Iqra; Nur chats are stored inside the user's synced progress.
 - Coach strictness (Gentle, Balanced, Strict) comes from the placement quiz and can be changed in Settings.
 - Reciters: Alafasy, Husary, Minshawi, Abdul Basit (alquran.cloud) and Yasser Ad-Dosary (everyayah.com, `ea:` ids).
+
+## v5 notes
+- Optional secret `PW_PEPPER` (any long random string): mixes a server-side secret into password hashes. Accounts are upgraded to the current hash format (PBKDF2-SHA-512, 100k iterations, the Workers maximum) the next time they sign in.
+- Halal scanner looks products up on Open Food Facts straight from the browser; no server config needed.

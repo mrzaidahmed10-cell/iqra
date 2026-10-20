@@ -11,9 +11,29 @@ const hex = u => [...u].map(b => b.toString(16).padStart(2, '0')).join('');
 const SESSION_TTL = 60 * 60 * 24 * 60;
 const MAX_STATE = 400000;
 
-async function hashPw(pw, salt) {
-  const key = await crypto.subtle.importKey('raw', enc.encode(pw), 'PBKDF2', false, ['deriveBits']);
-  return b64(await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt, iterations: 100000 }, key, 256));
+// Password hashing. Cloudflare Workers caps PBKDF2 at 100,000 iterations, so strength comes from the hash instead:
+//   v1 (legacy)  PBKDF2-SHA-256, 100k iterations
+//   v2 (current) PBKDF2-SHA-512, 100k iterations, with an optional server-side pepper (secret PW_PEPPER) mixed in via HMAC,
+//                so a copy of the database alone cannot be attacked offline.
+// Old accounts keep working and are upgraded to v2 the next time they sign in.
+const PBKDF2_ITER = 100000;
+async function pepperPw(pw, env, use) {
+  if (!use) return enc.encode(pw);
+  const k = await crypto.subtle.importKey('raw', enc.encode(env.PW_PEPPER), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  return new Uint8Array(await crypto.subtle.sign('HMAC', k, enc.encode(pw)));
+}
+async function hashPw(pw, salt, env, v = 2, use = false) {
+  const key = await crypto.subtle.importKey('raw', v >= 2 ? await pepperPw(pw, env, use) : enc.encode(pw), 'PBKDF2', false, ['deriveBits']);
+  return b64(await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: v >= 2 ? 'SHA-512' : 'SHA-256', salt, iterations: PBKDF2_ITER }, key, v >= 2 ? 512 : 256));
+}
+const newCred = async (pw, env) => { const salt = rnd(16), pp = env.PW_PEPPER ? 1 : 0; return { v: 2, pp, salt: b64(salt), hash: await hashPw(pw, salt, env, 2, !!pp) }; };
+// Constant-ish work whether or not the account exists, so response time does not reveal which usernames are registered.
+const DUMMY = { v: 2, pp: 0, salt: b64(new Uint8Array(16)), hash: '' };
+async function checkPw(rec, pw, env) {
+  const r = rec || DUMMY, v = r.v || 1;
+  if (v >= 2 && r.pp && !env.PW_PEPPER) throw new Error('PW_PEPPER secret is missing');
+  const h = await hashPw(pw, unb64(r.salt), env, v, !!r.pp);
+  return !!rec && same(h, r.hash);
 }
 const same = (a, b) => { if (a.length !== b.length) return false; let r = 0; for (let i = 0; i < a.length; i++) r |= a.charCodeAt(i) ^ b.charCodeAt(i); return r === 0; };
 const okUser = u => /^[a-z0-9_]{3,20}$/.test(u);
@@ -63,9 +83,8 @@ export async function onRequest({ request, env, params }) {
       if (password.length < 8 || password.length > 200) return J({ error: 'Password must be at least 8 characters.' }, 400);
       if (await kv.get('u:' + username)) return J({ error: 'That username is taken.' }, 409);
       if (await kv.get('e:' + email)) return J({ error: 'That email already has an account.' }, 409);
-      const salt = rnd(16);
       const state = b.state && JSON.stringify(b.state).length < MAX_STATE ? b.state : null;
-      await kv.put('u:' + username, JSON.stringify({ username, email, salt: b64(salt), hash: await hashPw(password, salt), created: Date.now(), state }));
+      await kv.put('u:' + username, JSON.stringify({ username, email, ...(await newCred(password, env)), created: Date.now(), state }));
       await kv.put('e:' + email, username);
       return J({ token: await newSession(env, username), username });
     }
@@ -77,8 +96,9 @@ export async function onRequest({ request, env, params }) {
       if (!(await throttle(env, 'f:' + id, 10, 900))) return J({ error: 'Too many attempts. Try again in 15 minutes.' }, 429);
       const username = id.includes('@') ? await kv.get('e:' + id) : id;
       const rec = username ? await kv.get('u:' + username, 'json') : null;
-      if (!rec || !same(await hashPw(password, unb64(rec.salt)), rec.hash)) return J({ error: 'Wrong username or password.' }, 401);
+      if (!(await checkPw(rec, password, env))) return J({ error: 'Wrong username or password.' }, 401);
       await kv.delete('f:' + id);
+      if ((rec.v || 1) < 2 || (!rec.pp && env.PW_PEPPER)) await kv.put('u:' + rec.username, JSON.stringify({ ...rec, ...(await newCred(password, env)) })); // upgrade old hashes
       return J({ token: await newSession(env, rec.username), username: rec.username, email: rec.email, state: rec.state });
     }
 
@@ -113,15 +133,15 @@ export async function onRequest({ request, env, params }) {
 
     if (path === 'password' && m === 'POST') {
       const b = await readBody(request); if (!b) return J({ error: 'Bad request' }, 400);
-      if (!same(await hashPw(String(b.current || ''), unb64(a.rec.salt)), a.rec.hash)) return J({ error: 'Current password is wrong.' }, 401);
+      if (!(await checkPw(a.rec, String(b.current || ''), env))) return J({ error: 'Current password is wrong.' }, 401);
       const next = String(b.next || ''); if (next.length < 8 || next.length > 200) return J({ error: 'New password must be at least 8 characters.' }, 400);
-      const salt = rnd(16); await kv.put('u:' + a.u, JSON.stringify({ ...a.rec, salt: b64(salt), hash: await hashPw(next, salt) }));
+      await kv.put('u:' + a.u, JSON.stringify({ ...a.rec, ...(await newCred(next, env)) }));
       return J({ ok: true });
     }
 
     if (path === 'delete' && m === 'POST') {
       const b = await readBody(request) || {};
-      if (!same(await hashPw(String(b.password || ''), unb64(a.rec.salt)), a.rec.hash)) return J({ error: 'Password is wrong.' }, 401);
+      if (!(await checkPw(a.rec, String(b.password || ''), env))) return J({ error: 'Password is wrong.' }, 401);
       await kv.delete('u:' + a.u); await kv.delete('e:' + a.rec.email); await kv.delete('s:' + a.t);
       return J({ ok: true });
     }
@@ -139,7 +159,7 @@ async function guard(request, env) {
     const a = await authed(request, env);
     if (!a) return { res: J({ error: 'Please sign in again.' }, 401) };
     const day = new Date().toISOString().slice(0, 10);
-    if (request.url.endsWith('/transcribe') && !(await throttle(env, `r:${a.u}:${day}`, 60, 172800))) return { res: J({ error: 'Daily coach limit reached. Try again tomorrow.' }, 429) };
+    if (request.url.endsWith('/transcribe') && !(await throttle(env, `r:${a.u}:${day}`, 150, 172800))) return { res: J({ error: 'Daily coach limit reached. Try again tomorrow.' }, 429) };
     if (request.url.endsWith('/nur') && !(await throttle(env, `n:${a.u}:${day}`, 80, 172800))) return { res: J({ error: 'You have reached the daily chat limit. Nur will be back tomorrow.' }, 429) };
   }
   return {};
@@ -170,7 +190,7 @@ const COACH_SYSTEM = `You are a gentle, precise Quran recitation coach (tajweed 
 You receive: the expected words of a passage (Uthmani script, indexed, when provided), a speech-to-text transcript of the student's recitation, and candidate mismatches found by an automatic aligner.
 IMPORTANT: the transcript has NO diacritics and the speech model often uses modern spelling (ة/ه, ى/ي, hamza forms, dagger alef written as ا, split or merged words). Those differences are transcription noise, NOT student errors.
 For each candidate decide whether the student really misread. Mark real=true only when the heard word is genuinely a different word or letters, a skipped word, or a clear letter/makhraj substitution (e.g. ص→س, ق→ك, ع→ء, ث→س, ذ→ز, ح→ه, ض→د). Otherwise real=false.
-Also list up to 6 tajweed REMINDERS (madd, ghunnah, qalqalah, idgham, ikhfa, heavy/light letters, waqf) for words in the passage where those rules apply. These are reminders, not detected errors.
+Candidates with suspect=true matched the expected word closely but the heard spelling swaps a letter that is easy to confuse. The transcript is written from what was heard, so a swapped letter there is real evidence: mark real=true with type pronunciation when the heard letters clearly differ, otherwise real=false.\nBe consistent: the same evidence must always get the same verdict. Judge only the evidence given and do not invent errors for words that match.\nAlso list up to 6 tajweed REMINDERS (madd, ghunnah, qalqalah, idgham, ikhfa, heavy/light letters, waqf) for words in the passage where those rules apply. These are reminders, not detected errors.
 Reply with JSON only, exactly this shape:
 {"verdicts":[{"i":number,"real":boolean,"type":"wrong"|"missing"|"pronunciation","issue":string,"tip":string}],"tajweed_watch":[{"i":number,"rule":string,"tip":string}],"summary":string,"strengths":string}
 Keep every string under 25 words, kind and specific.`;
@@ -181,10 +201,10 @@ async function coach(request, env) {
   const payload = {
     surah: String(b.surah || '').slice(0, 60), transcript: String(b.transcript || '').slice(0, 8000),
     words: Array.isArray(b.words) && b.words.length <= 250 ? b.words.map((w, i) => `${i}:${String(w).slice(0, 40)}`) : undefined,
-    candidates: b.candidates.slice(0, 120).map(c => ({ i: c.i, expected: String(c.expected || '').slice(0, 40), heard: c.heard ? String(c.heard).slice(0, 40) : null, near: Array.isArray(c.near) ? c.near.slice(0, 4) : undefined, sim: c.sim })),
+    candidates: b.candidates.slice(0, 120).map(c => ({ i: c.i, expected: String(c.expected || '').slice(0, 40), heard: c.heard ? String(c.heard).slice(0, 40) : null, near: Array.isArray(c.near) ? c.near.slice(0, 4) : undefined, sim: c.sim, suspect: c.suspect === true ? true : undefined })),
   };
   const lenient = { gentle: 'The student is a beginner. Be generous and encouraging. Mark real=true only for clearly wrong or skipped words; treat accent, small vowel slips and unclear articulation as NOT real. List at most 2 tajweed reminders.', strict: 'The student is advanced and wants exacting feedback. Flag clear letter substitutions, dropped or added letters and likely makhraj problems as real, and list up to 6 tajweed reminders.' }[b.leniency] || 'The student is intermediate. Be fair: mark clear word errors and clear letter substitutions as real, ignore transcription noise.';
-  const g2 = await groqChat(env, { temperature: 0, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: COACH_SYSTEM + '\nStrictness: ' + lenient }, { role: 'user', content: JSON.stringify(payload) }] });
+  const g2 = await groqChat(env, { temperature: 0, seed: 7, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: COACH_SYSTEM + '\nStrictness: ' + lenient }, { role: 'user', content: JSON.stringify(payload) }] });
   if (!g2.ok) { console.error('coach', g2.why); return J({ error: 'The coach is unavailable right now. Please try again.' }, 502); }
   let out; try { out = JSON.parse(g2.text.replace(/^```json|```$/g, '')); } catch { return J({ error: 'Coach returned an unreadable answer' }, 502); }
   const str = (s, n = 200) => String(s ?? '').slice(0, n);
