@@ -471,3 +471,8 @@ body.noscroll .totop{bottom:calc(env(safe-area-inset-bottom) + 110px)}
 .sbanner.warn{background:color-mix(in srgb,var(--warn) 18%,var(--card));border-color:color-mix(in srgb,var(--warn) 50%,transparent)}.sbanner.good{background:color-mix(in srgb,var(--good) 16%,var(--card));border-color:color-mix(in srgb,var(--good) 50%,transparent)}
 .badge-n{min-width:22px;height:22px;padding:0 6px;border-radius:11px;background:var(--ac);color:#fff;font-size:12px;font-weight:700;display:grid;place-items:center}
 .nav a.dot .ni::after{content:'';position:absolute;top:-1px;right:-3px;width:9px;height:9px;border-radius:50%;background:var(--bad);border:2px solid var(--card)}.nav a .ni{position:relative}
+
+/* v6: phone-first tap targets */
+.icon-btn.sm{width:44px;height:44px}.seg.sm button{min-height:40px}.day{min-width:40px;min-height:40px}
+input[type=range]{min-height:44px}input[type=checkbox],input[type=radio]{min-width:22px;min-height:22px}
+.recite .ov-foot,.lesson .ov-foot{padding-bottom:calc(env(safe-area-inset-bottom) + 12px)}

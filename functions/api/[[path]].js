@@ -233,13 +233,14 @@ async function guard(request, env) {
   if (env.IQRA_KV) {
     const a = await authed(request, env);
     if (!a) return { res: J({ error: 'Please sign in again.' }, 401) };
-    const day = new Date().toISOString().slice(0, 10), cfg = await getCfg(env);
+    const day = new Date().toISOString().slice(0, 10), cfg = await getCfg(env), pn = new URL(request.url), isT = pn.pathname.endsWith('/transcribe'), isN = pn.pathname.endsWith('/nur'), extra = pn.searchParams.get('x') === '1';
     if (cfg.maintenance.on) return { res: J({ error: cfg.maintenance.text || 'Iqra is getting a quick update. Please try again soon.' }, 503) };
-    if (request.url.endsWith('/transcribe') && cfg.coach === false) return { res: J({ error: 'The coach is taking a short break. Please try again later.' }, 503) };
-    if (request.url.endsWith('/nur') && cfg.nur === false) return { res: J({ error: 'Nur is taking a short break. Please try again later.' }, 503) };
-    if (request.url.endsWith('/transcribe') && !(await throttle(env, `r:${a.u}:${day}`, cfg.limits.coach, 172800))) return { res: J({ error: 'Daily coach limit reached. Try again tomorrow.' }, 429) };
-    if (request.url.endsWith('/nur') && !(await throttle(env, `n:${a.u}:${day}`, cfg.limits.nur, 172800))) return { res: J({ error: 'You have reached the daily chat limit. Nur will be back tomorrow.' }, 429) };
-    if (request.url.endsWith('/transcribe')) await bump(env, 'rec'); else if (request.url.endsWith('/nur')) await bump(env, 'nur');
+    if (isT && cfg.coach === false) return { res: J({ error: 'The coach is taking a short break. Please try again later.' }, 503) };
+    if (isN && cfg.nur === false) return { res: J({ error: 'Nur is taking a short break. Please try again later.' }, 503) };
+    if (isT && extra && !(await throttle(env, `x:${a.u}:${day}`, 900, 172800))) return { res: J({ error: 'Daily limit reached. Try again tomorrow.' }, 429) };
+    if (isT && !extra && !(await throttle(env, `r:${a.u}:${day}`, cfg.limits.coach, 172800))) return { res: J({ error: 'Daily coach limit reached. Try again tomorrow.' }, 429) };
+    if (isN && !(await throttle(env, `n:${a.u}:${day}`, cfg.limits.nur, 172800))) return { res: J({ error: 'You have reached the daily chat limit. Nur will be back tomorrow.' }, 429) };
+    if (isT && !extra) await bump(env, 'rec'); else if (isN) await bump(env, 'nur');
   }
   return {};
 }
@@ -253,7 +254,7 @@ async function transcribe(request, env) {
   if (audio.size > 24 * 1024 * 1024) return J({ error: 'Recording is too long. Try a shorter part.' }, 413);
   const fd = new FormData();
   fd.append('file', audio, audio.name || 'rec.webm');
-  fd.append('model', env.GROQ_STT_MODEL || 'whisper-large-v3');
+  const want = String(form.get('model') || ''); fd.append('model', ['whisper-large-v3', 'whisper-large-v3-turbo'].includes(want) ? want : (env.GROQ_STT_MODEL || 'whisper-large-v3'));
   fd.append('language', 'ar'); fd.append('temperature', '0');
   const send = async (f, extra) => { const x = new FormData(); for (const [k, v] of f.entries()) x.append(k, v); for (const [k, v] of extra) x.append(k, v); return fetch('https://api.groq.com/openai/v1/audio/transcriptions', { method: 'POST', headers: { Authorization: 'Bearer ' + env.GROQ_API_KEY }, body: x }); };
   // Ask for word timestamps (used for the word-by-word replay); fall back to plain text if the model refuses.
@@ -269,7 +270,7 @@ const COACH_SYSTEM = `You are a gentle, precise Quran recitation coach (tajweed 
 You receive: the expected words of a passage (Uthmani script, indexed, when provided), a speech-to-text transcript of the student's recitation, and candidate mismatches found by an automatic aligner.
 IMPORTANT: the transcript has NO diacritics and the speech model often uses modern spelling (ة/ه, ى/ي, hamza forms, dagger alef written as ا, split or merged words). Those differences are transcription noise, NOT student errors.
 For each candidate decide whether the student really misread. Mark real=true only when the heard word is genuinely a different word or letters, a skipped word, or a clear letter/makhraj substitution (e.g. ص→س, ق→ك, ع→ء, ث→س, ذ→ز, ح→ه, ض→د). Otherwise real=false.
-Candidates with suspect=true matched the expected word closely but the heard spelling swaps a letter that is easy to confuse. The transcript is written from what was heard, so a swapped letter there is real evidence: mark real=true with type pronunciation when the heard letters clearly differ, otherwise real=false.\nBe consistent: the same evidence must always get the same verdict. Judge only the evidence given and do not invent errors for words that match.\nAlso list up to 6 tajweed REMINDERS (madd, ghunnah, qalqalah, idgham, ikhfa, heavy/light letters, waqf) for words in the passage where those rules apply. These are reminders, not detected errors.
+Candidates with suspect=true matched the expected word closely but the heard spelling swaps a letter that is easy to confuse. The transcript is written from what was heard, so a swapped letter there is real evidence: mark real=true with type pronunciation when the heard letters clearly differ, otherwise real=false.\nCandidates may also carry alt (what a second speech model heard) and ac (an acoustic distance score against the reference recitation: below 1 sounds typical for this student, above 3 sounds clearly different). If both models heard the right word or ac is below 1, the mismatch is probably transcription noise: mark real=false. A high ac together with a different heard word is strong evidence: mark real=true.\nBe consistent: the same evidence must always get the same verdict. Judge only the evidence given and do not invent errors for words that match.\nAlso list up to 6 tajweed REMINDERS (madd, ghunnah, qalqalah, idgham, ikhfa, heavy/light letters, waqf) for words in the passage where those rules apply. These are reminders, not detected errors.
 Reply with JSON only, exactly this shape:
 {"verdicts":[{"i":number,"real":boolean,"type":"wrong"|"missing"|"pronunciation","issue":string,"tip":string}],"tajweed_watch":[{"i":number,"rule":string,"tip":string}],"summary":string,"strengths":string}
 Keep every string under 25 words, kind and specific.`;
@@ -280,7 +281,7 @@ async function coach(request, env) {
   const payload = {
     surah: String(b.surah || '').slice(0, 60), transcript: String(b.transcript || '').slice(0, 8000),
     words: Array.isArray(b.words) && b.words.length <= 250 ? b.words.map((w, i) => `${i}:${String(w).slice(0, 40)}`) : undefined,
-    candidates: b.candidates.slice(0, 120).map(c => ({ i: c.i, expected: String(c.expected || '').slice(0, 40), heard: c.heard ? String(c.heard).slice(0, 40) : null, near: Array.isArray(c.near) ? c.near.slice(0, 4) : undefined, sim: c.sim, suspect: c.suspect === true ? true : undefined })),
+    candidates: b.candidates.slice(0, 120).map(c => ({ i: c.i, expected: String(c.expected || '').slice(0, 40), heard: c.heard ? String(c.heard).slice(0, 40) : null, near: Array.isArray(c.near) ? c.near.slice(0, 4) : undefined, sim: c.sim, alt: c.alt ? String(c.alt).slice(0, 40) : undefined, ac: Number.isFinite(+c.ac) ? +c.ac : undefined, suspect: c.suspect === true ? true : undefined })),
   };
   const lenient = { gentle: 'The student is a beginner. Be generous and encouraging. Mark real=true only for clearly wrong or skipped words; treat accent, small vowel slips and unclear articulation as NOT real. List at most 2 tajweed reminders.', strict: 'The student is advanced and wants exacting feedback. Flag clear letter substitutions, dropped or added letters and likely makhraj problems as real, and list up to 6 tajweed reminders.' }[b.leniency] || 'The student is intermediate. Be fair: mark clear word errors and clear letter substitutions as real, ignore transcription noise.';
   const g2 = await groqChat(env, { temperature: 0, seed: 7, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: COACH_SYSTEM + '\nStrictness: ' + lenient }, { role: 'user', content: JSON.stringify(payload) }] });

@@ -4,6 +4,7 @@ import { S, $, $$, esc, toAr, api, Auth, nrm, wordsOf, sr, day, save, reward, sh
 import { ic } from './icons.js';
 import { openNur } from './nur.js';
 import { LENIENCY } from './content.js';
+import { prepare, wavOf, to16k, mfcc, dtw, median } from './audioprep.js';
 
 const CHUNK = 20, MAX = 30;
 const partsOf = count => { if (count <= MAX) return [[1, count]]; const p = []; for (let s = 1; s <= count; s += CHUNK) p.push([s, Math.min(count, s + CHUNK - 1)]); return p; };
@@ -12,7 +13,9 @@ function lev(a, b) {
   for (let i = 1; i <= a.length; i++) { const c = [i]; for (let j = 1; j <= b.length; j++) c[j] = Math.min(p[j] + 1, c[j - 1] + 1, p[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); p = c; }
   return p[b.length];
 }
-const sim = (a, b) => { if (a === b) return 1; const L = Math.max(a.length, b.length); return !L || Math.abs(a.length - b.length) > 3 ? 0 : 1 - lev(a, b) / L; };
+const sim0 = (a, b) => { if (a === b) return 1; const L = Math.max(a.length, b.length); return !L || Math.abs(a.length - b.length) > 3 ? 0 : 1 - lev(a, b) / L; };
+// The mushaf writes some long alefs as a small mark that speech models spell out in full, so words that differ only by alef count as a near match.
+const sim = (a, b) => { const s = sim0(a, b); return s === 1 ? 1 : Math.max(s, a.replace(/ا/g, '') === b.replace(/ا/g, '') && a.length > 1 ? .95 : 0); };
 // Word alignment (edit-distance DP) that also understands the speech model merging or splitting words:
 // one heard word can cover two expected words, and two heard words can cover one expected word.
 function align(E, H) {
@@ -130,15 +133,32 @@ export function openRecite(surah, ayahs, opts = {}) {
     if (blobUrl) URL.revokeObjectURL(blobUrl); blobUrl = URL.createObjectURL(blob); recBlob = blob; dbuf = null; env = null; if (replay) { replay.pause(); replay = null; }
     ov.innerHTML = `${top('Checking your recitation')}<div class="ov-body"><div class="working"><div class="spinner"></div><h3 id="ph">Listening to your recitation…</h3><p class="muted">This takes a few seconds.</p></div></div>`;
     try {
-      const fd = new FormData(); fd.append('audio', blob, 'rec.' + (/mp4|m4a/.test(blob.type) ? 'm4a' : 'webm'));
-      const t = await api('transcribe', 'POST', fd);
+      const up = await prepare(blob), nm = x => 'rec.' + (/wav/.test(x.type) ? 'wav' : /mp4|m4a/.test(x.type) ? 'm4a' : 'webm');
+      const send = (model, x) => { const fd = new FormData(); fd.append('audio', up, nm(up)); fd.append('model', model); return api('transcribe' + (x ? '?x=1' : ''), 'POST', fd); };
+      const secondP = send('whisper-large-v3-turbo', true).catch(() => null); // a second opinion from another model
+      const t = await send('whisper-large-v3');
       const ph = $('#ph', ov); if (ph) ph.textContent = 'Comparing with the mushaf…';
-      const L = lenOf(), H = [], Hr = [], Ht = [];
-      if (Array.isArray(t.words) && t.words.length >= 2) t.words.forEach(x => { const r = String(x.w || '').replace(/[^؀-ۿ]/g, ''), n = nrm(r); if (n) { H.push(n); Hr.push(r); Ht.push({ s: x.s, e: x.e }); } });
-      else (t.text || '').replace(/[^؀-ۿ\s]/g, ' ').split(/\s+/).filter(Boolean).forEach(r => { const n = nrm(r); if (n) { H.push(n); Hr.push(r); Ht.push(null); } });
+      const parse = t0 => { const H = [], Hr = [], Ht = []; if (!t0) return { H, Hr, Ht };
+        if (Array.isArray(t0.words) && t0.words.length >= 2) t0.words.forEach(x => { const r = String(x.w || '').replace(/[^؀-ۿ]/g, ''), n = nrm(r); if (n) { H.push(n); Hr.push(r); Ht.push({ s: x.s, e: x.e }); } });
+        else (t0.text || '').replace(/[^؀-ۿ\s]/g, ' ').split(/\s+/).filter(Boolean).forEach(r => { const n = nrm(r); if (n) { H.push(n); Hr.push(r); Ht.push(null); } });
+        return { H, Hr, Ht }; };
+      const L = lenOf(), { H, Hr, Ht } = parse(t), p2 = parse(await secondP);
       if (H.length < 2) throw new Error("I couldn't hear a recitation. Check your microphone and try again.");
-      const E = W.map(x => nrm(x.w)), al = align(E, H), m = W.length;
-      const info = W.map((x, i) => { const j = al.lo[i], jh = al.hi[i], s = j < 0 ? 0 : al.sc[i]; return { i, j, jh, s, heard: j < 0 ? null : Hr.slice(j, jh + 1).join(' '), conf: j >= 0 && s < 1 && confusable(E[i], H[j]), st: j < 0 ? 'missing' : s >= L.ok ? 'ok' : s >= L.wrong ? 'close' : 'wrong' }; });
+      const E = W.map(x => nrm(x.w)), al = align(E, H), m = W.length, strict = S.settings.leniency === 'strict', al2 = p2.H.length >= 2 ? align(E, p2.H) : null;
+      // Two models, one verdict: gentle/balanced trust the better reading (transcription noise is forgiven), strict needs both to agree.
+      const info = W.map((x, i) => {
+        const j = al.lo[i], jh = al.hi[i], s1 = j < 0 ? 0 : al.sc[i], h1 = j < 0 ? null : Hr.slice(j, jh + 1).join(' ');
+        let s = s1, heard = h1, alt = null, present = j >= 0;
+        if (al2) { const k = al2.lo[i]; if (k >= 0) { const s2 = al2.sc[i], h2 = p2.Hr.slice(k, al2.hi[i] + 1).join(' '); if (!present && !strict) { present = true; s = s2; heard = h2; } else if (present) { if (strict ? s2 < s1 : s2 > s1) { s = s2; alt = h1; heard = h2; } else alt = h2; } } }
+        return { i, j, jh, s, alt, heard, conf: present && s < 1 && confusable(E[i], (heard ? nrm(heard) : '')), st: !present ? 'missing' : s >= L.ok ? 'ok' : s >= L.wrong ? 'close' : 'wrong' };
+      });
+      const r0 = { hidx: info.map(x => x.j), hhi: info.map(x => x.jh), sp: al.sp, ht: Ht, hl: Hr.map(x => x.length), noTs: !Ht.some(Boolean), hn: H.length, fixed: {}, refined: {}, rp: {} };
+      const ph3 = $('#ph', ov); if (ph3) ph3.textContent = 'Comparing how each word sounds…';
+      const ac = await acousticCheck(info, E, r0);
+      info.forEach(x => { const z = ac.z[x.i]; if (z == null) return; x.z = z;
+        if (!strict && ((x.st === 'close' && x.s >= L.ok - .1 && z < .5) || (x.st === 'ok' && x.conf && z < .5))) { x.st = 'ok'; x.conf = false; } // sounds just like the reference, so the text difference was transcription noise
+        else if (x.st === 'ok' && !x.conf && x.s < 1 && z > 3.2 && !L.passPron) x.conf = true; // the text matched but the sound is off
+      });
       const missing = info.filter(x => x.st === 'missing').length;
       const used = new Set(); info.forEach(x => { if (x.j >= 0) for (let k = x.j; k <= x.jh; k++) used.add(k); });
       const extras = H.length - used.size;
@@ -148,14 +168,14 @@ export function openRecite(surah, ayahs, opts = {}) {
       let coach = null;
       if (missing / m <= .35) {
         const p2 = $('#ph', ov); if (p2) p2.textContent = 'Your coach is reviewing tajweed…';
-        try { coach = await api('coach', 'POST', { leniency: S.settings.leniency || 'balanced', surah: surah.en, transcript: t.text, words: m <= 250 ? W.map(x => x.w) : null, candidates: cands.map(c => ({ i: c.i, expected: W[c.i].w, heard: c.heard, near: c.heard ? null : near(c.i), sim: +c.s.toFixed(2), suspect: c.st === 'ok' ? true : undefined })) }); } catch { coach = null; }
+        try { coach = await api('coach', 'POST', { leniency: S.settings.leniency || 'balanced', surah: surah.en, transcript: t.text, words: m <= 250 ? W.map(x => x.w) : null, candidates: cands.map(c => ({ i: c.i, expected: W[c.i].w, heard: c.heard, near: c.heard ? null : near(c.i), sim: +c.s.toFixed(2), alt: c.alt || undefined, ac: c.z != null ? +c.z.toFixed(1) : undefined, suspect: c.st === 'ok' ? true : undefined })) }); } catch { coach = null; }
       }
       const marks = {};
       for (const c of cands) {
         const v = coach && (coach.verdicts || []).find(x => x.i === c.i);
         const suspect = c.st === 'ok', fallback = c.st === 'missing' ? 'missing' : c.st === 'wrong' ? 'wrong' : 'pron';
         if (v && !v.real) continue;
-        if (suspect && !v && L.passPron) continue;
+        if (suspect && !v && (L.passPron || !(c.conf || c.z > 3.5))) continue;
         const type = v ? ({ wrong: 'wrong', missing: 'missing', pronunciation: 'pron' }[v.type] || fallback) : fallback;
         marks[c.i] = { type, conf: c.conf, heard: c.heard, issue: v?.issue || (type === 'missing' ? 'This word was not heard.' : type === 'wrong' ? 'This sounded like a different word.' : 'Pronunciation looks slightly off.'), tip: v?.tip || '' };
       }
@@ -168,7 +188,7 @@ export function openRecite(surah, ayahs, opts = {}) {
       const clips = info.map(x => (x.j >= 0 && Ht[x.j]) || null);
       const timed = Ht.filter(Boolean), span = timed.length > 3 ? timed[timed.length - 1].e - timed[0].s : 0, wps = span > 2 ? H.length / span : 0;
       const pace = wps > 3.6 ? 'fast' : wps && wps < .7 ? 'slow' : '';
-      result = { clips, hidx: info.map(x => x.j), hhi: info.map(x => x.jh), sp: al.sp, ht: Ht, hl: Hr.map(x => x.length), noTs: !timed.length, fixed: {}, credit, m, extras, pace, hn: H.length, marks, errors, score, per, pass: score >= 95 && !incomplete, adj: score, moveOn: score >= 70 && !incomplete, incomplete, summary: coach?.summary || '', strengths: coach?.strengths || '', hasCoach: !!coach };
+      result = Object.assign(r0, { clips, base: ac.base, credit, m, extras, pace, marks, errors, score, per, pass: score >= 95 && !incomplete, adj: score, moveOn: score >= 70 && !incomplete, incomplete, summary: coach?.summary || '', strengths: coach?.strengths || '', hasCoach: !!coach  });
       showResult();
     } catch (e) {
       ov.innerHTML = `${top('Could not check')}<div class="ov-body"><div class="working">${ic('info', 36)}<h3>${esc(e.message || 'Something went wrong')}</h3></div></div><footer class="ov-foot"><button class="btn primary big" data-k="retry">Try again</button></footer>`;
@@ -275,15 +295,15 @@ export function openRecite(surah, ayahs, opts = {}) {
     const s = Math.max(lo, (x - 3) * e.dt), t = Math.min(hi, (y + 6) * e.dt); return t - s >= .2 ? [s, t] : [lo, hi];
   }
   // With no timestamps from the speech model, spread the heard words over the voiced part of the recording by letter count, then snap each edge to a pause.
-  function pseudoTimes(e, dur) {
-    const r = result, n = r.hn, thr = Math.max(e.floor * 2, e.peak * .1); let a = 0, b = e.n - 1; while (a < b && e.v[a] < thr) a++; while (b > a && e.v[b] < thr) b--;
+  function pseudoTimes(e, dur, r) {
+    const n = r.hn, thr = Math.max(e.floor * 2, e.peak * .1); let a = 0, b = e.n - 1; while (a < b && e.v[a] < thr) a++; while (b > a && e.v[b] < thr) b--;
     const t0 = a * e.dt, t1 = Math.min(dur, (b + 1) * e.dt), tot = r.hl.reduce((x, y) => x + y, 0) || n, cuts = [t0]; let acc = 0;
     for (let j = 0; j < n - 1; j++) { acc += r.hl[j]; const c = t0 + (t1 - t0) * acc / tot; cuts.push(Math.max(cuts[cuts.length - 1] + .05, valley(e, c - .18, c + .18))); }
     cuts.push(t1); r.ht = r.hl.map((_, j) => ({ s: cuts[j], e: cuts[j + 1], est: true })); r.noTs = false;
   }
-  const clipFor = (i, dur) => {
-    const r = result, j = r.hidx[i]; if (j == null || j < 0) return null; if (!env) return null;
-    if (r.noTs && !r.ht.every(Boolean)) pseudoTimes(env, dur);
+  const clipFor = (i, dur, r = result) => {
+    const j = r.hidx[i]; if (j == null || j < 0) return null; if (!env) return null;
+    if (r.noTs && !r.ht.every(Boolean)) pseudoTimes(env, dur, r);
     const jh = r.hhi[i] ?? j, A = r.ht[j], B = r.ht[jh]; if (!A || !B) return null;
     let s = A.s, e = B.e; const prev = r.ht[j - 1], next = r.ht[jh + 1], sp = r.sp && r.sp[i];
     let lo = s - .1, hi = e + .1;
@@ -293,9 +313,37 @@ export function openRecite(surah, ayahs, opts = {}) {
     lo = Math.max(0, Math.min(lo, s)); hi = Math.min(dur, Math.max(hi, e)); if (sp) { lo = Math.max(0, lo); }
     const [ts, te] = trim(env, Math.max(0, lo), hi); return { s: Math.max(0, ts - .015), e: Math.min(dur, te + .02) };
   };
+  // ---- Comparing how words sound ----
+  const trimPcm = x => { let pk = 0; for (let i = 0; i < x.length; i++) pk = Math.max(pk, Math.abs(x[i])); const thr = pk * .06; let a = 0, b = x.length - 1; while (a < b && Math.abs(x[a]) < thr) a++; while (b > a && Math.abs(x[b]) < thr) b--; return x.subarray(Math.max(0, a - 320), Math.min(x.length, b + 480)); };
+  async function refFeat(i) { const url = await refUrl(i, true).catch(() => ''); if (!url) return null; const rb = await refBuffer(url); return rb ? mfcc(trimPcm(await to16k(rb))) : null; }
+  async function acousticCheck(info, E, r0) {
+    const out = { z: {}, base: null };
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext; if (!dctx && AC) dctx = new AC(); const buf = await decoded(); if (!buf) return out; env = env || envelope(buf);
+      const pickN = (a, n) => a.length <= n ? a : Array.from({ length: n }, (_, k) => a[Math.floor(k * a.length / n)]);
+      const base = pickN(info.filter(x => x.st === 'ok' && x.s === 1 && x.j >= 0 && E[x.i].length >= 3), 10), targ = pickN(info.filter(x => x.j >= 0 && (x.st !== 'ok' || x.conf || x.s < 1)), 30), dl = Date.now() + 9000, dist = {};
+      const run = async list => { for (let k = 0; k < list.length && Date.now() < dl; k += 4) await Promise.all(list.slice(k, k + 4).map(async x => { try { const c = clipFor(x.i, buf.duration, r0); if (!c || c.e - c.s < .2) return; const rf = await refFeat(x.i); if (!rf) return; const d = dtw(mfcc(trimPcm(await to16k(buf, c.s, c.e))), rf); if (isFinite(d)) dist[x.i] = d; } catch { /* skip this word */ } })); };
+      await run(base); await run(targ.filter(x => !(x.i in dist)));
+      const bd = base.map(x => dist[x.i]).filter(v => v != null); if (bd.length < 6) return out;
+      const med = median(bd), mad = median(bd.map(v => Math.abs(v - med))), sc = Math.max(1.4826 * mad, .15 * med, 1e-3);
+      out.base = { med, sc, n: bd.length }; targ.forEach(x => { if (dist[x.i] != null) out.z[x.i] = (dist[x.i] - med) / sc; });
+    } catch { /* the sound check is a bonus */ }
+    return out;
+  }
+  // Ask the speech model to find the word inside a short slice of your recording, so the replay is cut exactly around it.
+  function refineClip(i) {
+    const r = result; if (!r.rp[i]) r.rp[i] = (async () => {
+      const buf = await decoded(); if (!buf) return null; if (!env) env = envelope(buf); const c = clipFor(i, buf.duration); if (!c) return null;
+      const s0 = Math.max(0, c.s - .4), e0 = Math.min(buf.duration, c.e + .4); let pcm = await to16k(buf, s0, e0), pk = 0; for (let k = 0; k < pcm.length; k++) pk = Math.max(pk, Math.abs(pcm[k])); if (pk > .002) { const g = Math.min(20, .9 / pk); pcm = pcm.map(v => v * g); }
+      const fd = new FormData(); fd.append('audio', wavOf(pcm), 'w.wav'); fd.append('model', 'whisper-large-v3');
+      const t = await api('transcribe?x=1', 'POST', fd), want = nrm(W[i].w), hn = r.marks[i] && r.marks[i].heard ? nrm(r.marks[i].heard) : '';
+      let best = null; (t.words || []).forEach(w => { const n = nrm(String(w.w || '').replace(/[^؀-ۿ]/g, '')); if (!n) return; const sc = Math.max(sim(want, n), hn ? sim(hn, n) : 0); if (!best || sc > best.sc) best = { sc, s: w.s, e: w.e }; });
+      if (!best || best.sc < .6) return null; const rs = Math.max(0, s0 + best.s - .03), re2 = Math.min(buf.duration, s0 + best.e + .05); return re2 - rs >= .15 && re2 - rs <= 3 ? { s: rs, e: re2 } : null;
+    })().catch(() => null); return r.rp[i];
+  }
   const hasMine = i => result.hidx[i] != null && result.hidx[i] >= 0;
   const playMine = async i => {
-    const buf = await decoded(); if (!buf) return false; if (!env) env = envelope(buf); const c = clipFor(i, buf.duration); if (!c) return false;
+    const buf = await decoded(); if (!buf) return false; if (!env) env = envelope(buf); let c = null; try { c = await Promise.race([refineClip(i), new Promise(r => setTimeout(() => r(null), 4500))]); } catch { /* use the sound-based cut */ } c = c || clipFor(i, buf.duration); if (!c) return false;
     const my = wtoken, len = Math.max(.2, c.e - c.s);
     return new Promise(res => {
       const src = dctx.createBufferSource(), g = dctx.createGain(), t = dctx.currentTime; src.buffer = buf; src.connect(g); g.connect(dctx.destination); wsrc = src;
@@ -303,11 +351,11 @@ export function openRecite(surah, ayahs, opts = {}) {
       src.onended = () => res(my === wtoken); src.start(0, c.s, len);
     });
   };
-  async function refUrl(i) {
+  async function refUrl(i, wordOnly = false) {
     const x = W[i]; const idx = W.slice(0, i).filter(y => y.a === x.a).length, n = W.filter(y => y.a === x.a).length;
     let ws = null; try { ws = await getWords(surah.n, x.a); } catch { /* offline */ }
     if (ws && ws.length === n && ws[idx] && ws[idx].au) return ws[idx].au;
-    const g = ayahs.find(a => a.n === x.a)?.g; return g ? audioUrl(g) : '';
+    if (wordOnly) return ''; const g = ayahs.find(a => a.n === x.a)?.g; return g ? audioUrl(g) : '';
   }
   async function refBuffer(url) {
     if (refBuf.has(url)) return refBuf.get(url);
@@ -332,7 +380,7 @@ export function openRecite(surah, ayahs, opts = {}) {
     set('', '');
   }
   // Warm the cache so the correct audio starts instantly
-  function preload() { if (!dctx) { const AC = window.AudioContext || window.webkitAudioContext; if (AC) dctx = new AC(); } Object.keys(result.marks).slice(0, 8).forEach(async i => { try { const u = await refUrl(+i); if (u) refBuffer(u); } catch { /* ignore */ } }); }
+  function preload() { if (!dctx) { const AC = window.AudioContext || window.webkitAudioContext; if (AC) dctx = new AC(); } Object.keys(result.marks).slice(0, 8).forEach(async i => { try { const u = await refUrl(+i); if (u) refBuffer(u); } catch { /* ignore */ } }); (async () => { for (const i of Object.keys(result.marks).filter(k => result.marks[k].type !== 'taj').slice(0, 6)) { if (!result) return; await refineClip(+i); } })(); }
   // ---- Re-recite one flagged word (extra credit toward passing) ----
   let fixing = false;
   async function fixWord(i, el) {
@@ -354,14 +402,16 @@ export function openRecite(surah, ayahs, opts = {}) {
     await done; fs.getTracks().forEach(t => t.stop()); try { ac && ac.close(); } catch { /* ignore */ }
     btn.disabled = true; btn.innerHTML = `${ic('mic', 16)} Checking…`; say('');
     try {
-      const blob = new Blob(chunks, { type: rc.mimeType || mt || 'audio/webm' }), fd = new FormData(); fd.append('audio', blob, 'w.' + (/mp4|m4a/.test(blob.type) ? 'm4a' : 'webm'));
-      const t = await api('transcribe', 'POST', fd), L = lenOf(), want = nrm(W[i].w);
+      const blob = new Blob(chunks, { type: rc.mimeType || mt || 'audio/webm' }), up = await prepare(blob), fd = new FormData(); fd.append('audio', up, 'w.' + (/wav/.test(up.type) ? 'wav' : /mp4|m4a/.test(up.type) ? 'm4a' : 'webm')); fd.append('model', 'whisper-large-v3');
+      const t = await api('transcribe?x=1', 'POST', fd), L = lenOf(), want = nrm(W[i].w);
       const toks = (t.text || '').replace(/[^؀-ۿ\s]/g, ' ').split(/\s+/).map(nrm).filter(Boolean);
       let best = 0, heard = toks.join(' '); toks.forEach((x, k) => { best = Math.max(best, sim(want, x)); if (toks[k + 1]) best = Math.max(best, sim(want, x + toks[k + 1])); });
       const need = result.marks[i].conf ? 1 : Math.max(L.ok, .85);
-      if (best >= need) {
+      let off = false; // the sound must also match the reference as well as your own correct words did
+      if (best >= need && result.base) { try { const AC = window.AudioContext || window.webkitAudioContext; if (!dctx && AC) dctx = new AC(); const nb = await dctx.decodeAudioData(await blob.arrayBuffer()), rf = await refFeat(i); if (rf) { const d = dtw(mfcc(trimPcm(await to16k(nb))), rf); off = isFinite(d) && (d - result.base.med) / result.base.sc > 3.5; } } catch { /* skip the sound check */ } }
+      if (best >= need && !off) {
         result.fixed[i] = true; adjust(); const was = result.moveOn; payMove(); feel('right', 'right'); toast(result.ec ? `Corrected. Extra credit +${result.ec}%` : 'Corrected', 'check'); closeSheet(); renderResult(true); void was;
-      } else { feel('bad', 'bad'); say(heard ? `Heard "${heard}". Listen to the correct one and try again.` : 'Nothing was heard. Try again a little louder.'); btn.disabled = false; btn.innerHTML = `${ic('mic', 16)} Try again`; btn.onclick = null; }
+      } else { feel('bad', 'bad'); say(off ? 'Close, but it sounded a little different. Listen to the correct one and try again.' : heard ? `Heard "${heard}". Listen to the correct one and try again.` : 'Nothing was heard. Try again a little louder.'); btn.disabled = false; btn.innerHTML = `${ic('mic', 16)} Try again`; btn.onclick = null; }
     } catch (e) { say(e.message || 'Could not check that. Try again.'); btn.disabled = false; btn.innerHTML = `${ic('mic', 16)} Try again`; btn.onclick = null; }
     fixing = false;
   }

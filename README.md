@@ -73,3 +73,7 @@ Speech-to-text hears words, not harakat. It can reliably catch skipped, swapped 
 ## v5 notes
 - Optional secret `PW_PEPPER` (any long random string): mixes a server-side secret into password hashes. Accounts are upgraded to the current hash format (PBKDF2-SHA-512, 100k iterations, the Workers maximum) the next time they sign in.
 - Halal scanner looks products up on Open Food Facts straight from the browser; no server config needed.
+
+## v6 notes
+- Add a Cloudflare secret `ADMIN_PASSWORD` to enable the team-only admin tools. Without it they stay switched off.
+- Recitation grading cross-checks two speech models, compares each flagged word's sound with the reference recitation, and refines word cuts with a short AI pass.
