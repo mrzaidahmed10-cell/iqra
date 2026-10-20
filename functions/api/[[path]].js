@@ -46,7 +46,7 @@ async function authed(request, env) {
   const u = await env.IQRA_KV.get('s:' + t);
   if (!u) return null;
   const rec = await env.IQRA_KV.get('u:' + u, 'json');
-  return rec ? { u, rec, t } : null;
+  return rec && !rec.suspended ? { u, rec, t } : null;
 }
 async function newSession(env, username) {
   const token = hex(rnd(32));
@@ -65,6 +65,9 @@ export async function onRequest({ request, env, params }) {
   const m = request.method;
   try {
     if (path === 'health') return J({ ok: true, kv: !!env.IQRA_KV, groq: !!env.GROQ_API_KEY });
+    if (path === 'config' && m === 'GET') { const c = await getCfg(env); return J({ banner: c.banner.on && c.banner.text ? c.banner : null, maintenance: c.maintenance.on ? c.maintenance : null, registrations: c.registrations }); }
+    if (path === 'community' && m === 'GET') return J({ posts: sortPosts(env.IQRA_KV ? (await env.IQRA_KV.get('community', 'json')) || [] : []) });
+    if (path.startsWith('admin/') || path === 'admin') return admin(path.slice(6), m, request, env);
 
     // ---------- AI coach ----------
     if (path === 'transcribe' && m === 'POST') return transcribe(request, env);
@@ -76,6 +79,7 @@ export async function onRequest({ request, env, params }) {
     const kv = env.IQRA_KV;
 
     if (path === 'register' && m === 'POST') {
+      if (!(await getCfg(env)).registrations) return J({ error: 'New sign-ups are paused right now. Please check back soon.' }, 403);
       const b = await readBody(request); if (!b) return J({ error: 'Bad request' }, 400);
       const username = String(b.username || '').trim().toLowerCase(), email = String(b.email || '').trim().toLowerCase(), password = String(b.password || '');
       if (!okUser(username)) return J({ error: 'Username must be 3–20 letters, numbers or underscores.' }, 400);
@@ -85,7 +89,7 @@ export async function onRequest({ request, env, params }) {
       if (await kv.get('e:' + email)) return J({ error: 'That email already has an account.' }, 409);
       const state = b.state && JSON.stringify(b.state).length < MAX_STATE ? b.state : null;
       await kv.put('u:' + username, JSON.stringify({ username, email, ...(await newCred(password, env)), created: Date.now(), state }));
-      await kv.put('e:' + email, username);
+      await kv.put('e:' + email, username); await bump(env, 'reg');
       return J({ token: await newSession(env, username), username });
     }
 
@@ -97,7 +101,8 @@ export async function onRequest({ request, env, params }) {
       const username = id.includes('@') ? await kv.get('e:' + id) : id;
       const rec = username ? await kv.get('u:' + username, 'json') : null;
       if (!(await checkPw(rec, password, env))) return J({ error: 'Wrong username or password.' }, 401);
-      await kv.delete('f:' + id);
+      if (rec.suspended) return J({ error: 'This account has been suspended. Contact the Iqra team if you think this is a mistake.' }, 403);
+      await kv.delete('f:' + id); await bump(env, 'login');
       if ((rec.v || 1) < 2 || (!rec.pp && env.PW_PEPPER)) await kv.put('u:' + rec.username, JSON.stringify({ ...rec, ...(await newCred(password, env)) })); // upgrade old hashes
       return J({ token: await newSession(env, rec.username), username: rec.username, email: rec.email, state: rec.state });
     }
@@ -152,15 +157,89 @@ export async function onRequest({ request, env, params }) {
   }
 }
 
+// ---------- config, stats ----------
+const DEF_CFG = { banner: { on: false, text: '', tone: 'info' }, maintenance: { on: false, text: '' }, registrations: true, coach: true, nur: true, limits: { coach: 150, nur: 80 } };
+async function getCfg(env) {
+  if (!env.IQRA_KV) return DEF_CFG; let c = null; try { c = await env.IQRA_KV.get('cfg', 'json'); } catch { /* defaults */ } c = c || {};
+  return { ...DEF_CFG, ...c, banner: { ...DEF_CFG.banner, ...(c.banner || {}) }, maintenance: { ...DEF_CFG.maintenance, ...(c.maintenance || {}) }, limits: { ...DEF_CFG.limits, ...(c.limits || {}) } };
+}
+const dayKey = (d = Date.now()) => new Date(d).toISOString().slice(0, 10);
+async function bump(env, k) { // rough daily counters for the dev portal
+  if (!env.IQRA_KV) return; try { const key = 'st:' + dayKey(), c = (await env.IQRA_KV.get(key, 'json')) || {}; c[k] = (c[k] || 0) + 1; await env.IQRA_KV.put(key, JSON.stringify(c), { expirationTtl: 3456000 }); } catch { /* stats are best effort */ }
+}
+const sortPosts = l => [...l].sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || b.at - a.at);
+const KINDS = ['news', 'update', 'reminder', 'dua', 'event'];
+
+// ---------- dev portal API (needs the ADMIN_PASSWORD secret) ----------
+async function adminAuth(request, env) {
+  const t = (request.headers.get('Authorization') || '').replace(/^Bearer\s+/i, ''); if (!t || !env.IQRA_KV) return false;
+  return !!(await env.IQRA_KV.get('a:' + t));
+}
+async function logA(env, action, detail) { try { const l = (await env.IQRA_KV.get('alog', 'json')) || []; l.unshift({ at: Date.now(), action, detail: String(detail || '').slice(0, 120) }); await env.IQRA_KV.put('alog', JSON.stringify(l.slice(0, 100))); } catch { /* best effort */ } }
+const digest = async s => b64(await crypto.subtle.digest('SHA-256', enc.encode(s)));
+const brief = r => { const st = r.state || {}; return { username: r.username, email: r.email, created: r.created || 0, suspended: !!r.suspended, reason: r.reason || '', xp: st.xp || 0, level: st.profile?.level || '', streak: st.streak || 0, lastActive: st.lastActive || '', lessons: Object.keys(st.lessons || {}).length, recites: (st.recites || []).length, name: st.profile?.name || '' }; };
+async function admin(sub, m, request, env) {
+  if (!env.ADMIN_PASSWORD) return J({ error: 'Dev portal is not set up. Add the ADMIN_PASSWORD secret in Cloudflare.' }, 503);
+  if (!env.IQRA_KV) return J({ error: 'KV is not bound.' }, 503); const kv = env.IQRA_KV;
+  if (sub === 'login' && m === 'POST') {
+    const ip = request.headers.get('CF-Connecting-IP') || 'x'; if (!(await throttle(env, 'af:' + ip, 8, 900))) return J({ error: 'Too many attempts. Try again in 15 minutes.' }, 429);
+    const b = await readBody(request) || {}; if (!same(await digest(String(b.password || '')), await digest(env.ADMIN_PASSWORD))) { await logA(env, 'login failed', ip); return J({ error: 'Wrong password.' }, 401); }
+    const token = hex(rnd(32)); await kv.put('a:' + token, '1', { expirationTtl: 28800 }); await logA(env, 'login', ip); return J({ token });
+  }
+  if (!(await adminAuth(request, env))) return J({ error: 'Session expired. Sign in again.' }, 401);
+  const b = m === 'POST' ? (await readBody(request)) || {} : {}, url = new URL(request.url);
+  if (sub === 'logout') { await kv.delete('a:' + (request.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '')); return J({ ok: true }); }
+  if (sub === 'overview') {
+    let total = 0, cursor, susp = 0; for (let i = 0; i < 10; i++) { const r = await kv.list({ prefix: 'u:', limit: 1000, cursor }); total += r.keys.length; if (r.list_complete) break; cursor = r.cursor; }
+    const days = [...Array(7)].map((_, i) => dayKey(Date.now() - (6 - i) * 864e5)), stats = await Promise.all(days.map(async d => ({ day: d, ...((await kv.get('st:' + d, 'json')) || {}) })));
+    const posts = (await kv.get('community', 'json')) || [];
+    return J({ total, stats, posts: posts.length, groq: !!env.GROQ_API_KEY, pepper: !!env.PW_PEPPER, cfg: await getCfg(env), susp });
+  }
+  if (sub === 'accounts') {
+    const q = (url.searchParams.get('q') || '').trim().toLowerCase(), cursor = url.searchParams.get('cursor') || undefined; let names = [], next = null;
+    if (q.includes('@')) { const u = await kv.get('e:' + q); if (u) names = [u]; }
+    else { const r = await kv.list({ prefix: 'u:' + q, limit: 25, cursor: q ? undefined : cursor }); names = r.keys.map(k => k.name.slice(2)); next = !q && !r.list_complete ? r.cursor : null; }
+    const rows = (await Promise.all(names.map(n => kv.get('u:' + n, 'json')))).filter(Boolean).map(brief); return J({ rows, next });
+  }
+  if (sub === 'account' && m === 'POST') {
+    const u = String(b.username || '').toLowerCase(), rec = await kv.get('u:' + u, 'json'); if (!rec) return J({ error: 'No such account.' }, 404);
+    if (b.action === 'suspend') { rec.suspended = true; rec.reason = String(b.reason || '').slice(0, 200); await kv.put('u:' + u, JSON.stringify(rec)); await logA(env, 'suspend', u); return J({ ok: true }); }
+    if (b.action === 'unsuspend') { delete rec.suspended; delete rec.reason; await kv.put('u:' + u, JSON.stringify(rec)); await logA(env, 'unsuspend', u); return J({ ok: true }); }
+    if (b.action === 'delete') { await kv.delete('u:' + u); await kv.delete('e:' + rec.email); await logA(env, 'delete', u); return J({ ok: true }); }
+    if (b.action === 'resetpw') { const temp = hex(rnd(5)) + 'Aa1'; await kv.put('u:' + u, JSON.stringify({ ...rec, ...(await newCred(temp, env)) })); await logA(env, 'reset password', u); return J({ ok: true, temp }); }
+    return J({ error: 'Unknown action.' }, 400);
+  }
+  if (sub === 'posts') return J({ posts: sortPosts((await kv.get('community', 'json')) || []) });
+  if (sub === 'post' && m === 'POST') {
+    const title = String(b.title || '').trim().slice(0, 80), body = String(b.body || '').trim().slice(0, 2000), kind = KINDS.includes(b.kind) ? b.kind : 'news', link = /^https:\/\//.test(String(b.link || '')) ? String(b.link).slice(0, 300) : '';
+    if (!title || !body) return J({ error: 'A post needs a title and some text.' }, 400);
+    const list = (await kv.get('community', 'json')) || []; let post = b.id ? list.find(x => x.id === b.id) : null;
+    if (post) Object.assign(post, { title, body, kind, link, pinned: !!b.pinned, upd: Date.now() }); else { post = { id: hex(rnd(4)), title, body, kind, link, pinned: !!b.pinned, at: Date.now() }; list.unshift(post); }
+    await kv.put('community', JSON.stringify(list.slice(0, 100))); await logA(env, b.id ? 'edit post' : 'new post', title); return J({ ok: true, post });
+  }
+  if (sub === 'post-delete' && m === 'POST') { const list = ((await kv.get('community', 'json')) || []).filter(x => x.id !== b.id); await kv.put('community', JSON.stringify(list)); await logA(env, 'delete post', b.id); return J({ ok: true }); }
+  if (sub === 'config' && m === 'POST') {
+    const n = (v, lo, hi, d) => Number.isFinite(+v) ? Math.max(lo, Math.min(hi, Math.round(+v))) : d, c = await getCfg(env);
+    const next = { banner: { on: !!b.banner?.on, text: String(b.banner?.text || '').slice(0, 200), tone: ['info', 'warn', 'good'].includes(b.banner?.tone) ? b.banner.tone : 'info' }, maintenance: { on: !!b.maintenance?.on, text: String(b.maintenance?.text || '').slice(0, 200) }, registrations: b.registrations !== false, coach: b.coach !== false, nur: b.nur !== false, limits: { coach: n(b.limits?.coach, 1, 1000, c.limits.coach), nur: n(b.limits?.nur, 1, 1000, c.limits.nur) } };
+    await kv.put('cfg', JSON.stringify(next)); await logA(env, 'settings changed', ''); return J({ ok: true, cfg: next });
+  }
+  if (sub === 'log') return J({ log: (await kv.get('alog', 'json')) || [] });
+  return J({ error: 'Not found' }, 404);
+}
+
 // ---------- Groq helpers ----------
 async function guard(request, env) {
   if (!env.GROQ_API_KEY) return { res: J({ error: 'The coach is unavailable right now.' }, 503) };
   if (env.IQRA_KV) {
     const a = await authed(request, env);
     if (!a) return { res: J({ error: 'Please sign in again.' }, 401) };
-    const day = new Date().toISOString().slice(0, 10);
-    if (request.url.endsWith('/transcribe') && !(await throttle(env, `r:${a.u}:${day}`, 150, 172800))) return { res: J({ error: 'Daily coach limit reached. Try again tomorrow.' }, 429) };
-    if (request.url.endsWith('/nur') && !(await throttle(env, `n:${a.u}:${day}`, 80, 172800))) return { res: J({ error: 'You have reached the daily chat limit. Nur will be back tomorrow.' }, 429) };
+    const day = new Date().toISOString().slice(0, 10), cfg = await getCfg(env);
+    if (cfg.maintenance.on) return { res: J({ error: cfg.maintenance.text || 'Iqra is getting a quick update. Please try again soon.' }, 503) };
+    if (request.url.endsWith('/transcribe') && cfg.coach === false) return { res: J({ error: 'The coach is taking a short break. Please try again later.' }, 503) };
+    if (request.url.endsWith('/nur') && cfg.nur === false) return { res: J({ error: 'Nur is taking a short break. Please try again later.' }, 503) };
+    if (request.url.endsWith('/transcribe') && !(await throttle(env, `r:${a.u}:${day}`, cfg.limits.coach, 172800))) return { res: J({ error: 'Daily coach limit reached. Try again tomorrow.' }, 429) };
+    if (request.url.endsWith('/nur') && !(await throttle(env, `n:${a.u}:${day}`, cfg.limits.nur, 172800))) return { res: J({ error: 'You have reached the daily chat limit. Nur will be back tomorrow.' }, 429) };
+    if (request.url.endsWith('/transcribe')) await bump(env, 'rec'); else if (request.url.endsWith('/nur')) await bump(env, 'nur');
   }
   return {};
 }

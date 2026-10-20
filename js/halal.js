@@ -79,7 +79,7 @@ function showResult(p, v) {
     ${v.hits.length ? `<h4>What I found</h4><ul class="hl-hits">${v.hits.map(h => `<li class="${h.k}"><b>${esc(h.n)}</b><small>${esc(h.why)}</small></li>`).join('')}</ul>` : ''}
     ${p.ingredients ? `<h4>Ingredients</h4><p class="hl-ing">${hl(p.ingredients, v.hits)}</p>` : ''}
     <div class="row-gap"><button class="btn grow" data-act="hl-ask">${ic('message', 16)} Ask Nur</button><button class="btn primary grow" data-act="hl-scan">${ic('scan', 16)} Scan another</button></div>
-    <p class="muted small center">Guidance only, not a fatwa or certification. Ingredient data comes from Open Food Facts and can be incomplete. When in doubt, leave it.</p></section>`;
+    <p class="muted small center">Ingredient data comes from Open Food Facts and can be incomplete, so this can make mistakes. When in doubt, leave it.</p></section>`;
   out.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 async function check(code) {

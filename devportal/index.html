@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en-US"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow"><meta name="color-scheme" content="dark light"><title>Iqra Dev Portal</title>
+<style>
+:root{--bg:#0d1020;--card:#161a30;--card2:#1e2340;--ink:#eef0ff;--mute:#9aa1c8;--line:#2a3057;--ac:#8b7cff;--good:#4cd6a0;--bad:#ff6f8e;--warn:#ffc15a}
+@media (prefers-color-scheme:light){:root{--bg:#f3f4fb;--card:#fff;--card2:#eceefb;--ink:#14172e;--mute:#5d6490;--line:#d9dcef;--ac:#5b49e8;--good:#0a9a68;--bad:#d6325a;--warn:#b87400}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding:env(safe-area-inset-top) 0 calc(env(safe-area-inset-bottom) + 76px)}
+main{padding:14px 16px;max-width:720px;margin:0 auto}h1{font-size:22px;margin:6px 0 2px}h2{font-size:17px;margin:0 0 10px}h3{margin:0 0 6px;font-size:15px}small,.m{color:var(--mute)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;margin:0 0 12px}
+input,textarea,select,button{font:inherit;color:inherit}input,textarea,select{width:100%;padding:12px;border-radius:12px;border:1px solid var(--line);background:var(--card2);font-size:16px}textarea{min-height:96px;resize:vertical}
+label{display:block;font-size:13px;color:var(--mute);margin:10px 0 4px}
+button{border:0;border-radius:12px;padding:12px 16px;background:var(--card2);font-weight:600;min-height:44px;cursor:pointer}button.p{background:var(--ac);color:#fff}button.d{background:color-mix(in srgb,var(--bad) 22%,var(--card2));color:var(--bad)}button.s{min-height:38px;padding:8px 12px;font-size:14px}button:disabled{opacity:.5}
+.row{display:flex;gap:8px;align-items:center}.row>*{flex:1}.row>.n{flex:none}.wrap{flex-wrap:wrap}.g{display:grid;gap:10px}.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.kpi b{display:block;font-size:26px}.kpi small{font-size:12px}
+.tabs{position:fixed;left:0;right:0;bottom:0;display:grid;grid-template-columns:repeat(5,1fr);background:var(--card);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom);z-index:5}
+.tabs button{background:none;border-radius:0;color:var(--mute);font-size:12px;padding:10px 2px}.tabs button.on{color:var(--ac)}
+.pill{display:inline-block;padding:2px 9px;border-radius:99px;font-size:12px;background:var(--card2);color:var(--mute)}.pill.bad{background:color-mix(in srgb,var(--bad) 20%,transparent);color:var(--bad)}.pill.good{background:color-mix(in srgb,var(--good) 20%,transparent);color:var(--good)}.pill.warn{background:color-mix(in srgb,var(--warn) 22%,transparent);color:var(--warn)}
+.item{padding:12px 0;border-top:1px solid var(--line)}.item:first-child{border:0}.bars{display:flex;align-items:flex-end;gap:6px;height:90px;margin-top:8px}.bars div{flex:1;background:var(--ac);border-radius:6px 6px 0 0;min-height:2px;position:relative}.bars span{position:absolute;top:-16px;left:0;right:0;text-align:center;font-size:10px;color:var(--mute)}
+.sw{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-top:1px solid var(--line)}.sw input{width:auto;transform:scale(1.4)}
+.toast{position:fixed;left:16px;right:16px;bottom:calc(env(safe-area-inset-bottom) + 84px);background:var(--ink);color:var(--bg);padding:12px 14px;border-radius:12px;text-align:center;z-index:9;font-weight:600}
+.hide{display:none}pre{white-space:pre-wrap;word-break:break-all;background:var(--card2);padding:10px;border-radius:10px;margin:6px 0}
+</style></head><body><main id="app"></main><div id="tabs" class="tabs hide"></div><div id="toast" class="toast hide"></div>
+<script>
+const $ = s => document.querySelector(s), esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+let tok = ''; try { tok = sessionStorage.getItem('dp') || ''; } catch { /* private mode */ }
+let tab = 'home', acc = { rows: [], next: null, q: '' };
+const toast = m => { const t = $('#toast'); t.textContent = m; t.classList.remove('hide'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.add('hide'), 2600); };
+async function api(path, body) {
+  const r = await fetch('/api/admin/' + path, { method: body ? 'POST' : 'GET', headers: { 'Content-Type': 'application/json', ...(tok ? { Authorization: 'Bearer ' + tok } : {}) }, body: body ? JSON.stringify(body) : undefined });
+  const j = await r.json().catch(() => ({})); if (r.status === 401 && tok) { tok = ''; try { sessionStorage.removeItem('dp'); } catch { /* ignore */ } show(); } if (!r.ok) throw new Error(j.error || 'Request failed'); return j;
+}
+const ago = t => { if (!t) return 'never'; const d = (Date.now() - t) / 864e5; return d < 1 ? 'today' : d < 2 ? 'yesterday' : Math.floor(d) + ' days ago'; };
+function login(msg = '') {
+  $('#tabs').classList.add('hide');
+  $('#app').innerHTML = `<h1>Iqra Dev Portal</h1><p class="m">Team only.</p><div class="card"><label>Password</label><input id="pw" type="password" autocomplete="current-password" autofocus><p class="m" id="lerr" style="color:var(--bad)">${esc(msg)}</p><button class="p" id="go" style="width:100%">Enter</button></div>`;
+  const go = async () => { try { const j = await api('login', { password: $('#pw').value }); tok = j.token; try { sessionStorage.setItem('dp', tok); } catch { /* ignore */ } show(); } catch (e) { $('#lerr').textContent = e.message; } };
+  $('#go').onclick = go; $('#pw').onkeydown = e => e.key === 'Enter' && go();
+}
+function show() {
+  if (!tok) return login();
+  const T = [['home', 'Overview'], ['acc', 'Accounts'], ['posts', 'Community'], ['cfg', 'Settings'], ['log', 'Log']];
+  const tb = $('#tabs'); tb.classList.remove('hide'); tb.innerHTML = T.map(t => `<button data-t="${t[0]}" class="${tab === t[0] ? 'on' : ''}">${t[1]}</button>`).join('');
+  tb.onclick = e => { const b = e.target.closest('[data-t]'); if (b) { tab = b.dataset.t; show(); window.scrollTo(0, 0); } };
+  ({ home: vHome, acc: vAcc, posts: vPosts, cfg: vCfg, log: vLog })[tab]();
+}
+async function vHome() {
+  $('#app').innerHTML = '<h1>Overview</h1><p class="m">Loading…</p>';
+  try {
+    const o = await api('overview'), mx = Math.max(1, ...o.stats.map(s => s.rec || 0));
+    $('#app').innerHTML = `<h1>Overview</h1>
+    <div class="g2"><div class="card kpi"><b>${o.total}</b><small>Accounts</small></div><div class="card kpi"><b>${o.stats[6].reg || 0}</b><small>Sign-ups today</small></div>
+    <div class="card kpi"><b>${o.stats[6].rec || 0}</b><small>Recitations today</small></div><div class="card kpi"><b>${o.stats[6].nur || 0}</b><small>Nur messages today</small></div>
+    <div class="card kpi"><b>${o.stats[6].login || 0}</b><small>Sign-ins today</small></div><div class="card kpi"><b>${o.posts}</b><small>Community posts</small></div></div>
+    <div class="card"><h3>Recitations, last 7 days</h3><div class="bars">${o.stats.map(s => `<div style="height:${Math.max(3, (s.rec || 0) / mx * 100)}%"><span>${s.rec || 0}</span></div>`).join('')}</div><div class="row m" style="font-size:11px;margin-top:4px">${o.stats.map(s => `<span style="text-align:center">${s.day.slice(8)}</span>`).join('')}</div></div>
+    <div class="card"><h3>Status</h3><p><span class="pill ${o.groq ? 'good' : 'bad'}">AI key ${o.groq ? 'set' : 'missing'}</span> <span class="pill ${o.pepper ? 'good' : 'warn'}">Password pepper ${o.pepper ? 'on' : 'off'}</span> <span class="pill ${o.cfg.maintenance.on ? 'bad' : 'good'}">${o.cfg.maintenance.on ? 'Maintenance ON' : 'Live'}</span> <span class="pill ${o.cfg.registrations ? 'good' : 'warn'}">Sign-ups ${o.cfg.registrations ? 'open' : 'paused'}</span></p></div>
+    <button id="out" class="d" style="width:100%">Sign out</button>`;
+    $('#out').onclick = async () => { await api('logout', {}).catch(() => {}); tok = ''; try { sessionStorage.removeItem('dp'); } catch { /* ignore */ } login(); };
+  } catch (e) { $('#app').innerHTML = `<h1>Overview</h1><p class="m">${esc(e.message)}</p>`; }
+}
+async function loadAcc(more) {
+  try { const j = await api('accounts?q=' + encodeURIComponent(acc.q) + (more && acc.next ? '&cursor=' + encodeURIComponent(acc.next) : '')); acc.rows = more ? acc.rows.concat(j.rows) : j.rows; acc.next = j.next; } catch (e) { toast(e.message); }
+  drawAcc();
+}
+function drawAcc() {
+  $('#list').innerHTML = acc.rows.length ? acc.rows.map(r => `<div class="item"><div class="row"><div><b>${esc(r.username)}</b> ${r.suspended ? '<span class="pill bad">suspended</span>' : ''}<br><small>${esc(r.email)}</small></div></div>
+    <small>${esc(r.name || '')}${r.name ? ' · ' : ''}Level ${esc(r.level || '?')} · ${r.xp} XP · ${r.streak} day streak · ${r.lessons} lessons · ${r.recites} recitations<br>Joined ${ago(r.created)} · last active ${esc(r.lastActive || 'unknown')}${r.reason ? '<br>Reason: ' + esc(r.reason) : ''}</small>
+    <div class="row wrap" style="margin-top:8px">${r.suspended ? `<button class="s" data-a="unsuspend" data-u="${esc(r.username)}">Unsuspend</button>` : `<button class="s" data-a="suspend" data-u="${esc(r.username)}">Suspend</button>`}<button class="s" data-a="resetpw" data-u="${esc(r.username)}">Reset password</button><button class="s d" data-a="delete" data-u="${esc(r.username)}">Remove</button></div></div>`).join('') : '<p class="m">No accounts found.</p>';
+  $('#more').classList.toggle('hide', !acc.next);
+}
+function vAcc() {
+  $('#app').innerHTML = `<h1>Accounts</h1><div class="row"><input id="q" placeholder="Username starts with, or exact email" value="${esc(acc.q)}" autocapitalize="off"><button class="n p" id="sq">Search</button></div><div class="card" style="margin-top:12px"><div id="list"></div><button id="more" class="hide" style="width:100%;margin-top:8px">Load more</button></div>`;
+  $('#sq').onclick = () => { acc.q = $('#q').value.trim(); loadAcc(); }; $('#q').onkeydown = e => e.key === 'Enter' && $('#sq').click(); $('#more').onclick = () => loadAcc(true);
+  $('#list').onclick = async e => {
+    const b = e.target.closest('[data-a]'); if (!b) return; const u = b.dataset.u, a = b.dataset.a; let reason = '';
+    if (a === 'delete' && !confirm(`Permanently remove ${u}? This cannot be undone.`)) return;
+    if (a === 'suspend') { reason = prompt(`Reason for suspending ${u} (optional)`); if (reason === null) return; }
+    if (a === 'resetpw' && !confirm(`Reset the password for ${u}? Their current password stops working.`)) return;
+    try { const j = await api('account', { username: u, action: a, reason }); if (j.temp) prompt('Temporary password (shown once). Give it to the user:', j.temp); toast('Done'); loadAcc(); } catch (er) { toast(er.message); }
+  };
+  loadAcc();
+}
+let editing = null;
+async function vPosts() {
+  $('#app').innerHTML = '<h1>Community</h1><p class="m">Posts appear in the app under More → Community. People can read them but not reply.</p><div class="card" id="form"></div><div class="card" id="plist"><p class="m">Loading…</p></div>';
+  const form = () => { const p = editing || {}; $('#form').innerHTML = `<h2>${p.id ? 'Edit post' : 'New post'}</h2><label>Title</label><input id="pt" maxlength="80" value="${esc(p.title || '')}"><label>Message</label><textarea id="pb" maxlength="2000">${esc(p.body || '')}</textarea><div class="g2"><div><label>Type</label><select id="pk">${['news', 'update', 'reminder', 'dua', 'event'].map(k => `<option ${p.kind === k ? 'selected' : ''}>${k}</option>`).join('')}</select></div><div><label>Link (optional, https)</label><input id="pl" value="${esc(p.link || '')}" placeholder="https://"></div></div><div class="sw"><span>Pin to the top</span><input type="checkbox" id="pp" ${p.pinned ? 'checked' : ''}></div><div class="row"><button class="p" id="ps">${p.id ? 'Save changes' : 'Publish'}</button>${p.id ? '<button id="pc">Cancel</button>' : ''}</div>`;
+    $('#ps').onclick = async () => { try { await api('post', { id: p.id, title: $('#pt').value, body: $('#pb').value, kind: $('#pk').value, link: $('#pl').value, pinned: $('#pp').checked }); editing = null; toast(p.id ? 'Saved' : 'Published'); vPosts(); } catch (e) { toast(e.message); } };
+    if (p.id) $('#pc').onclick = () => { editing = null; form(); };
+  }; form();
+  try {
+    const j = await api('posts'), L = $('#plist'); L.innerHTML = j.posts.length ? j.posts.map(p => `<div class="item"><b>${esc(p.title)}</b> <span class="pill">${esc(p.kind)}</span> ${p.pinned ? '<span class="pill warn">pinned</span>' : ''}<br><small>${new Date(p.at).toLocaleDateString()}</small><p style="margin:6px 0">${esc(p.body)}</p><div class="row wrap"><button class="s" data-e="${p.id}">Edit</button><button class="s d" data-x="${p.id}">Delete</button></div></div>`).join('') : '<p class="m">No posts yet.</p>';
+    L.onclick = async e => { const x = e.target.closest('[data-x]'), ed = e.target.closest('[data-e]'); if (x && confirm('Delete this post?')) { await api('post-delete', { id: x.dataset.x }); toast('Deleted'); vPosts(); } if (ed) { editing = j.posts.find(p => p.id === ed.dataset.e); form(); window.scrollTo(0, 0); } };
+  } catch (e) { $('#plist').innerHTML = `<p class="m">${esc(e.message)}</p>`; }
+}
+async function vCfg() {
+  $('#app').innerHTML = '<h1>Settings</h1><p class="m">Loading…</p>';
+  try {
+    const { cfg: c } = await api('overview');
+    $('#app').innerHTML = `<h1>Settings</h1>
+    <div class="card"><h2>Banner</h2><p class="m">A message shown at the top of the app.</p><div class="sw"><span>Show banner</span><input type="checkbox" id="bo" ${c.banner.on ? 'checked' : ''}></div><label>Text</label><input id="bt" maxlength="200" value="${esc(c.banner.text)}"><label>Style</label><select id="bs">${['info', 'good', 'warn'].map(t => `<option ${c.banner.tone === t ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
+    <div class="card"><h2>Maintenance mode</h2><p class="m">Pauses the AI features and shows your message.</p><div class="sw"><span>Maintenance on</span><input type="checkbox" id="mo" ${c.maintenance.on ? 'checked' : ''}></div><label>Message</label><input id="mt" maxlength="200" value="${esc(c.maintenance.text)}"></div>
+    <div class="card"><h2>Features</h2><div class="sw"><span>New sign-ups open</span><input type="checkbox" id="rg" ${c.registrations ? 'checked' : ''}></div><div class="sw"><span>Recitation coach on</span><input type="checkbox" id="co" ${c.coach ? 'checked' : ''}></div><div class="sw"><span>Nur chat on</span><input type="checkbox" id="nu" ${c.nur ? 'checked' : ''}></div></div>
+    <div class="card"><h2>Daily limits per user</h2><div class="g2"><div><label>Coach recordings</label><input id="lc" type="number" inputmode="numeric" min="1" max="1000" value="${c.limits.coach}"></div><div><label>Nur messages</label><input id="ln" type="number" inputmode="numeric" min="1" max="1000" value="${c.limits.nur}"></div></div></div>
+    <button class="p" id="sv" style="width:100%">Save settings</button>`;
+    $('#sv').onclick = async () => { try { await api('config', { banner: { on: $('#bo').checked, text: $('#bt').value, tone: $('#bs').value }, maintenance: { on: $('#mo').checked, text: $('#mt').value }, registrations: $('#rg').checked, coach: $('#co').checked, nur: $('#nu').checked, limits: { coach: $('#lc').value, nur: $('#ln').value } }); toast('Saved'); } catch (e) { toast(e.message); } };
+  } catch (e) { $('#app').innerHTML = `<h1>Settings</h1><p class="m">${esc(e.message)}</p>`; }
+}
+async function vLog() {
+  $('#app').innerHTML = '<h1>Activity</h1><div class="card" id="lg"><p class="m">Loading…</p></div>';
+  try { const j = await api('log'); $('#lg').innerHTML = j.log.length ? j.log.map(l => `<div class="item"><b>${esc(l.action)}</b> ${esc(l.detail)}<br><small>${new Date(l.at).toLocaleString()}</small></div>`).join('') : '<p class="m">Nothing yet.</p>'; } catch (e) { $('#lg').innerHTML = `<p class="m">${esc(e.message)}</p>`; }
+}
+show();
+</script></body></html>

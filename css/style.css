@@ -454,3 +454,20 @@ body.noscroll .totop{bottom:calc(env(safe-area-inset-bottom) + 110px)}
 .grp{margin:20px 4px 8px;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--mute)}
 .tile b{font-size:.9rem}.tile small{font-size:.74rem}
 .btn.hl-scan{width:100%}body.studying .totop{display:none}
+
+/* v6: flat tab bar, icon highlight only */
+.nav-glass{border-radius:0;box-shadow:none}.nav-pill{display:none}
+.nav a{transition:color .2s}.nav a.on,.nav a.hot{color:var(--ac)}.nav a.on .ni,.nav a.hot .ni{color:var(--ac)}
+.nav a.on .ni{transform:translateY(-1px)}
+.nav.press a.on:not(.hot),.nav.press a.on:not(.hot) .ni{color:var(--mute)}
+
+/* v6: prayer widget, community, banner, unread dot */
+.pw{display:flex;align-items:center;gap:12px;padding:12px 14px;text-decoration:none;color:inherit}.pw .ico{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:var(--ac-soft);color:var(--ac);flex:none}
+.pw b{display:block;font-size:1.05rem}.pw-r{text-align:end}.pw-r b{font-size:1rem}.pw-r small{display:block}
+.post{display:grid;gap:8px}.post h3{margin:0}.post p{margin:0;line-height:1.5}.post.pin{border-color:color-mix(in srgb,var(--gold) 55%,transparent)}
+.post-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.post-h small{margin-inline-start:auto}
+.pill{display:inline-flex;align-items:center;gap:4px;padding:2px 9px;border-radius:99px;font-size:12px;font-weight:600;background:var(--card2);color:var(--mute)}.pill.gold{background:color-mix(in srgb,var(--gold) 20%,transparent);color:var(--gold)}
+.sbanner{margin:0 0 12px;padding:11px 14px;border-radius:14px;font-weight:600;font-size:14px;background:var(--ac-soft);border:1px solid color-mix(in srgb,var(--ac) 35%,transparent)}
+.sbanner.warn{background:color-mix(in srgb,var(--warn) 18%,var(--card));border-color:color-mix(in srgb,var(--warn) 50%,transparent)}.sbanner.good{background:color-mix(in srgb,var(--good) 16%,var(--card));border-color:color-mix(in srgb,var(--good) 50%,transparent)}
+.badge-n{min-width:22px;height:22px;padding:0 6px;border-radius:11px;background:var(--ac);color:#fff;font-size:12px;font-weight:700;display:grid;place-items:center}
+.nav a.dot .ni::after{content:'';position:absolute;top:-1px;right:-3px;width:9px;height:9px;border-radius:50%;background:var(--bad);border:2px solid var(--card)}.nav a .ni{position:relative}

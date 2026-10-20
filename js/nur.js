@@ -28,7 +28,7 @@ export function openNur({ ask: first, extra } = {}) {
   document.body.append(ov); requestAnimationFrame(() => ov.classList.add('in'));
   const list = $('#nl', ov), ta = $('#nt', ov), sug = $('#ns', ov); let busy = false;
 
-  const DISC = "I'm an AI, not a scholar, and I can make mistakes. For rulings that affect you, check with a qualified scholar.";
+  const DISC = "I'm an AI and can make mistakes. For rulings that matter to you, ask a qualified scholar.";
   const bubble = m => `<div class="msg ${m.r}"><div class="bub">${m.r === 'ai' ? md(m.t) : esc(m.t).replace(/\n/g, '<br>')}${m.d ? `<small class="disc">${DISC}</small>` : ''}</div></div>`;
   const scroll = () => list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
   function paint() {

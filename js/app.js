@@ -10,6 +10,7 @@ import { UNITS, lessonMeta } from './curriculum.js';
 import { startLesson, startSurah, startReview, resumeSession, hasSession, sessionInfo } from './lesson.js';
 import { openRecite, gradeOf } from './recite.js';
 import * as HL from './halal.js';
+import * as EX from './extras.js';
 import { openNur } from './nur.js';
 import { openArcade } from './games.js';
 import { back, ring, val, title, getErr, timers, clearTimers, refresh, lrow } from './ui.js';
@@ -53,7 +54,7 @@ const AUTH = {
   s3: () => `<div class="dots"><i class="on"></i><i class="on"></i><i class="on"></i></div><h2>Create your account</h2><p class="muted">So your progress follows you on every device.</p>
     <label>Username<input id="r-user" autocomplete="username" autocapitalize="none" placeholder="letters, numbers, _"></label><label>Email<input id="r-email" type="email" autocomplete="email"></label>
     <label>Password<input id="r-pw" type="password" autocomplete="new-password" placeholder="8+ characters"></label>
-    <label class="check-row card"><input type="checkbox" id="r-agree" data-agree><span>I agree to the <a href="terms.html" target="_blank" rel="noopener">Terms of Use</a> and the <a href="privacy.html" target="_blank" rel="noopener">Privacy Policy</a>, which explain how my data, recordings and chats are handled.</span></label><p class="err" id="err"></p>
+    <label class="check-row card"><input type="checkbox" id="r-agree" data-agree><span>I agree to the <a href="terms.html" target="_blank" rel="noopener">Terms of Use</a> and the <a href="privacy.html" target="_blank" rel="noopener">Privacy Policy</a>.</span></label><p class="err" id="err"></p>
     <div class="col-gap"><button class="btn primary big" data-act="a-create" id="r-go" disabled>Create account</button><button class="btn ghost" data-act="a-go" data-s="s2">Back</button></div>`,
 };
 function renderAuth() { document.body.classList.add('authing'); app.innerHTML = `<div class="auth"><div class="auth-card enter">${AUTH[step]()}</div></div>`; }
@@ -79,6 +80,7 @@ async function boot() {
   initNav(); renderMini();
   try { surahList = await getSurahList(); } catch { surahList = []; }
   window.__surahList = surahList;
+  EX.loadBanner().then(() => { if ($('#view') && /^#\/(home)?$/.test(location.hash || '#/')) route(true); }); EX.refreshCommunity();
   route(); legalGate();
 }
 
@@ -86,7 +88,7 @@ async function boot() {
 function legalGate() {
   if (!S.profile || S.profile.agreedAt || $('.legal-gate')) return;
   const g = document.createElement('div'); g.className = 'legal-gate'; g.setAttribute('role', 'dialog'); g.setAttribute('aria-modal', 'true');
-  g.innerHTML = `<div class="legal-card"><span class="ico big">${ic('shield', 26)}</span><h2>Before you continue</h2><p class="muted">We added a Privacy Policy and Terms of Use. Please read and accept them to keep using Iqra.</p><p><a href="privacy.html" target="_blank" rel="noopener">Privacy Policy</a> · <a href="terms.html" target="_blank" rel="noopener">Terms of Use</a></p><label class="check-row"><input type="checkbox" id="lg-ok"><span>I have read and agree to the Terms of Use and Privacy Policy.</span></label><button class="btn primary big" id="lg-go" disabled>Accept and continue</button></div>`;
+  g.innerHTML = `<div class="legal-card"><span class="ico big">${ic('shield', 26)}</span><h2>Before you continue</h2><p class="muted">We added a Privacy Policy and Terms of Use. Take a look and accept to keep going.</p><p><a href="privacy.html" target="_blank" rel="noopener">Privacy Policy</a> · <a href="terms.html" target="_blank" rel="noopener">Terms of Use</a></p><label class="check-row"><input type="checkbox" id="lg-ok"><span>I have read and agree to the Terms of Use and Privacy Policy.</span></label><button class="btn primary big" id="lg-go" disabled>Accept and continue</button></div>`;
   document.body.append(g); requestAnimationFrame(() => g.classList.add('in'));
   $('#lg-ok', g).onchange = e => { $('#lg-go', g).disabled = !e.target.checked; };
   $('#lg-go', g).onclick = () => { S.profile.agreedAt = Date.now(); if (draft.quizSkipped && !draft.placed) S.profile.placementLater = Date.now(); save(); g.classList.remove('in'); setTimeout(() => g.remove(), 260); };
@@ -158,7 +160,7 @@ bus.addEventListener('audio', e => { $$('.ayah.playing').forEach(x => x.classLis
 // ---------- router
 const VIEWS = {
   home: viewHome, path: viewPath, quran: viewQuran, listen: viewListen, surah: viewSurah, progress: viewProgress, more: viewMore,
-  account: P.viewAccount, settings: P.viewSettings, shop: P.viewShop, fasting: P.viewFasting, hadith: P.viewHadith, advice: P.viewAdvice, prayer: P.viewPrayer, dhikr: P.viewDhikr, alphabet: P.viewAlphabet, about: P.viewAbout, halal: HL.viewHalal,
+  account: P.viewAccount, settings: P.viewSettings, shop: P.viewShop, fasting: P.viewFasting, hadith: P.viewHadith, advice: P.viewAdvice, prayer: P.viewPrayer, dhikr: P.viewDhikr, alphabet: P.viewAlphabet, about: P.viewAbout, halal: HL.viewHalal, community: EX.viewCommunity,
 };
 async function route(keep = false) {
   const view = $('#view'); if (!view) return;
@@ -170,7 +172,7 @@ async function route(keep = false) {
   const fn = VIEWS[a] || viewHome; view.dataset.v = a;
   try {
     const out = await fn(b); if (tok !== rtok) return;
-    view.classList.remove('enter'); view.innerHTML = out.html; if (!keep) { void view.offsetWidth; view.classList.add('enter'); } out.after && out.after();
+    view.classList.remove('enter'); view.innerHTML = (['home', 'path', 'quran', 'listen', 'progress', 'more'].includes(a) ? EX.bannerHTML() : '') + out.html; if (!keep) { void view.offsetWidth; view.classList.add('enter'); } out.after && out.after();
     window.scrollTo(0, keep ? y : 0);
   } catch (e) { if (tok === rtok) view.innerHTML = `<div class="card center"><h3>Couldn't load</h3><p class="muted">${getErr(e)}</p><p class="muted small">Check your connection, then retry.</p><button class="btn primary" data-act="retry">Retry</button></div>`; }
 }
@@ -203,6 +205,7 @@ async function viewHome() {
   return {
     html: `<header class="top"><div class="who"><span class="avatar">${ic(S.settings.avatar, 22)}</span><div><small class="muted">${hj ? esc(hj.text) : ''}</small><h1>Assalamu alaykum, ${esc(p.name || 'friend')}</h1></div></div><div class="chips"><span class="chip">${ic('flame', 14)} ${streakNow()}</span><span class="chip gold">${ic('coin', 14)} ${S.coins}</span></div></header>
     <section class="hero"><div class="hero-l"><small class="muted">Level ${lv} · ${title(lv)}</small><h2 class="mins">${dayMinutes(d)}<span> of ${p.goalMin || 10} min today</span></h2><div class="xpbar"><i style="width:${Math.round((S.xp - lo) / (hi - lo) * 100)}%"></i></div><small class="muted">${S.xp - lo} / ${hi - lo} XP to level ${lv + 1}</small><button class="trk" data-act="level">${ic(tr.icon, 16)}<span>${tr.n} plan</span>${ic('chevR', 14)}</button></div>${archHTML(prog)}</section>
+    ${EX.prayerWidget()}
     ${ses ? `<section class="card resume"><div class="up-h"><span class="ico big">${ic('play', 22)}</span><div><small class="muted">Pick up where you left off</small><h3>${esc(ses.title)}</h3><p class="muted">${esc(ses.sub || '')} · ${ses.pct}% done</p></div></div><div class="progress"><i style="width:${ses.pct}%"></i></div><button class="btn primary big" data-act="resume">Resume</button></section>` : ''}
     ${!p.placement && !p.placementLater ? `<section class="card up plc-nudge"><div class="up-h"><span class="ico big">${ic('compass', 22)}</span><div><small class="muted">Recommended</small><h3>Find your level</h3><p class="muted">A 5 minute quiz tunes your lessons and how strict your recitation coach is.</p></div></div><div class="row-gap"><button class="btn primary grow" data-act="placement">Take the quiz</button><button class="btn ghost" data-act="plc-later">Not now</button></div></section>` : ''}
     ${upNext()}
@@ -210,7 +213,7 @@ async function viewHome() {
     <section class="tiles"><button class="tile" data-act="recite-pick"><span class="ico">${ic('mic', 22)}</span><b>Recite</b><small>Get graded</small></button><button class="tile" data-act="nur"><span class="ico">${ic('message', 22)}</span><b>Ask Nur</b><small>Your coach</small></button><button class="tile" data-act="arcade"><span class="ico">${ic('dice', 22)}</span><b>Games</b><small>Calm break</small></button><a class="tile" href="#/more/halal"><span class="ico">${ic('scan', 22)}</span><b>Halal</b><small>Scan food</small></a></section>
     <section class="card"><div class="row-between"><h3>Today's tasks</h3><small class="muted">resets at midnight</small></div>${questsNow().map(q => { const v = Math.min(q.g, d[q.k] || 0); return `<div class="quest ${v >= q.g ? 'done' : ''}"><span class="qi">${ic(v >= q.g ? 'check' : 'target', 16)}</span><div class="grow"><b>${q.t}</b><div class="progress thin"><i style="width:${v / q.g * 100}%"></i></div></div><small>${ic('coin', 12)} ${q.c}</small></div>`; }).join('')}</section>
     <section class="card daily" id="daily"><small class="muted">Ayah of the day</small><div class="skeleton"></div></section>`,
-    after: () => { loadDaily(); requestAnimationFrame(() => requestAnimationFrame(() => { const a = $('#aprog'); if (a) a.setAttribute('stroke-dashoffset', 100 * (1 - +a.dataset.p)); })); },
+    after: () => { loadDaily(); EX.startPrayerWidget(); requestAnimationFrame(() => requestAnimationFrame(() => { const a = $('#aprog'); if (a) a.setAttribute('stroke-dashoffset', 100 * (1 - +a.dataset.p)); })); },
   };
 }
 bus.addEventListener('secs', e => { const a = $('#aprog'); if (!a) return; const p = S.profile || {}; a.dataset.p = Math.min(1, e.detail / ((p.goalMin || 10) * 60)); if (e.detail % 5 === 0) a.setAttribute('stroke-dashoffset', 100 * (1 - +a.dataset.p)); });
@@ -336,13 +339,13 @@ async function viewProgress() {
 function viewMore() {
   const G = [
     ['Learn', [['path', 'route', 'Your path', 'Lessons and library'], ['alphabet', 'type', 'Arabic alphabet', 'Letters and sounds'], ['advice', 'bulb', 'Learning advice', 'Memorization tips']]],
-    ['Daily life', [['halal', 'scan', 'Halal scanner', 'Scan a barcode to check ingredients'], ['prayer', 'dome', 'Prayer times', 'Next prayer countdown'], ['dhikr', 'beads', 'Dhikr counter', 'Tasbih'], ['fasting', 'moon', 'Fasting log', 'Track your fasts'], ['hadith', 'quote', 'Hadith', 'Daily wisdom']]],
+    ['Daily life', [['community', 'users', 'Community', 'News from the Iqra team'], ['halal', 'scan', 'Halal scanner', 'Scan a barcode to check ingredients'], ['prayer', 'dome', 'Prayer times', 'Next prayer countdown'], ['dhikr', 'beads', 'Dhikr counter', 'Tasbih'], ['fasting', 'moon', 'Fasting log', 'Track your fasts'], ['hadith', 'quote', 'Hadith', 'Daily wisdom']]],
     ['You', [['account', 'user', 'Account', 'Profile, level and sign-in'], ['shop', 'bag', 'Rewards', `${S.coins} coins to spend`], ['settings', 'settings', 'Settings', 'Appearance, sound, reciter']]],
     ['About', [['about', 'info', 'About Iqra', 'How it works'], ['privacy', 'shield', 'Privacy policy', 'How your data is used'], ['terms', 'file', 'Terms of use', 'The rules of the app']]],
   ];
   const href = k => k === 'path' ? '#/path' : k === 'privacy' || k === 'terms' ? `${k}.html` : `#/more/${k}`;
   return { html: `<header class="top"><h1>More</h1></header><button class="card nur-card" data-act="nur"><span class="ico big">${ic('sparkle', 22)}</span><div class="grow"><b>Chat with Nur</b><small class="muted">Ask about letters, tajweed or your next step</small></div>${ic('chevR', 18, 'dim')}</button>
-    ${G.map(g => `<h3 class="grp">${g[0]}</h3><div class="card list">${g[1].map(r => lrow(r[1], r[2], r[3], href(r[0]))).join('')}</div>`).join('')}` };
+    ${G.map(g => `<h3 class="grp">${g[0]}</h3><div class="card list">${g[1].map(r => lrow(r[1], r[2], r[3], href(r[0]), r[0] === 'community' && EX.unreadCount() ? `<span class="badge-n">${EX.unreadCount()}</span>` : '')).join('')}</div>`).join('')}` };
 }
 
 // =====================================================================
