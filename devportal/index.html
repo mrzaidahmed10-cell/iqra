@@ -35,7 +35,7 @@ function login(msg = '') {
   $('#tabs').classList.add('hide');
   $('#app').innerHTML = `<h1>Iqra Dev Portal</h1><p class="m">Team only.</p><div class="card"><label>Password</label><input id="pw" type="password" autocomplete="current-password" autofocus><p class="m" id="lerr" style="color:var(--bad)">${esc(msg)}</p><button class="p" id="go" style="width:100%">Enter</button></div>`;
   const go = async () => { try { const j = await api('login', { password: $('#pw').value }); tok = j.token; try { sessionStorage.setItem('dp', tok); } catch { /* ignore */ } show(); } catch (e) { $('#lerr').textContent = e.message; } };
-  $('#go').onclick = go; $('#pw').onkeydown = e => e.key === 'Enter' && go();
+  $('#go').onclick = go; $('#pw').addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
 }
 function show() {
   if (!tok) return login();
@@ -70,7 +70,7 @@ function drawAcc() {
 }
 function vAcc() {
   $('#app').innerHTML = `<h1>Accounts</h1><div class="row"><input id="q" placeholder="Username starts with, or exact email" value="${esc(acc.q)}" autocapitalize="off"><button class="n p" id="sq">Search</button></div><div class="card" style="margin-top:12px"><div id="list"></div><button id="more" class="hide" style="width:100%;margin-top:8px">Load more</button></div>`;
-  $('#sq').onclick = () => { acc.q = $('#q').value.trim(); loadAcc(); }; $('#q').onkeydown = e => e.key === 'Enter' && $('#sq').click(); $('#more').onclick = () => loadAcc(true);
+  $('#sq').onclick = () => { acc.q = $('#q').value.trim(); loadAcc(); }; $('#q').addEventListener('keydown', e => { if (e.key === 'Enter') $('#sq').click(); }); $('#more').onclick = () => loadAcc(true);
   $('#list').onclick = async e => {
     const b = e.target.closest('[data-a]'); if (!b) return; const u = b.dataset.u, a = b.dataset.a; let reason = '';
     if (a === 'delete' && !confirm(`Permanently remove ${u}? This cannot be undone.`)) return;
