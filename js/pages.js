@@ -87,23 +87,6 @@ export function viewAbout() {
     <section class="card"><h3>Credits</h3><p class="muted small">Quran text, translation (Sahih International) and audio via alquran.cloud and the Islamic Network CDN. Word-by-word meanings via quran.com. Fonts: Amiri Quran, Bricolage Grotesque, Instrument Sans.</p></section>` };
 }
 
-// ----- prayer times -----
-export function viewPrayer() { return { html: `${back()}<h2>Prayer times</h2><section class="card" id="pt"><p class="muted">Loading…</p></section>`, after: loadPrayer }; }
-export async function loadPrayer() {
-  const box = $('#pt'); if (!box) return;
-  let loc = null; try { loc = JSON.parse(localStorage.getItem('iqra_loc')); } catch { /* none */ }
-  if (!loc) { box.innerHTML = `<p>Show prayer times for your location.</p><div class="col-gap"><button class="btn primary" data-act="prayer-locate">${ic('compass', 18)} Use my location</button></div><p class="muted center">or</p><div class="form"><label>City<input id="pc-city"></label><label>Country<input id="pc-country"></label><button class="btn" data-act="prayer-city">Use city</button></div>`; return; }
-  try {
-    const now = new Date(), dd = `${String(now.getDate()).padStart(2, '0')}-${String(now.getMonth() + 1).padStart(2, '0')}-${now.getFullYear()}`;
-    const url = loc.lat != null ? `https://api.aladhan.com/v1/timings/${dd}?latitude=${loc.lat}&longitude=${loc.lng}&method=2` : `https://api.aladhan.com/v1/timingsByCity/${dd}?city=${encodeURIComponent(loc.city)}&country=${encodeURIComponent(loc.country)}&method=2`;
-    const j = await (await fetch(url)).json(); const t = j.data.timings, names = ['Fajr', 'Sunrise', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
-    const at = k => { const [h, m] = t[k].split(' ')[0].split(':').map(Number); const d = new Date(); d.setHours(h, m, 0, 0); return d; };
-    const draw = () => { const n = new Date(); let nx = names.find(k => at(k) > n); const tomorrow = !nx; if (!nx) nx = 'Fajr'; const target = at(nx); if (tomorrow) target.setDate(target.getDate() + 1); const diff = Math.max(0, target - n), hh = Math.floor(diff / 36e5), mm = Math.floor(diff % 36e5 / 6e4), ss = Math.floor(diff % 6e4 / 1e3);
-      const el = $('#pt'); if (!el) return; el.innerHTML = `<small class="muted">Next prayer</small><h2>${nx}</h2><div class="countdown">${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}</div>${names.map(k => `<div class="lrow plain ${k === nx ? 'cur' : ''}"><b class="grow">${k}</b><span>${t[k].split(' ')[0]}</span></div>`).join('')}<button class="btn ghost small" data-act="prayer-reset">Change location</button>`; };
-    draw(); timers.push(setInterval(draw, 1000));
-  } catch { box.innerHTML = `<p class="muted">Couldn't load prayer times.</p><button class="btn" data-act="prayer-reset">Change location</button>`; }
-}
-
 // ----- dhikr -----
 export function viewDhikr() {
   const d = S.dhikr, p = DHIKR[d.idx] || DHIKR[0];
@@ -155,9 +138,6 @@ export const PAGE_ACT = {
   'fast-day': t => { const k = t.dataset.d; sheet(`<h3 class="center">${new Date(k + 'T12:00').toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</h3><div class="opts col">${FAST_TYPES.map(f => `<button class="opt ${S.fasts[k] === f.id ? 'right' : ''}" data-act="fast-set" data-d="${k}" data-f="${f.id}"><span class="oi">${ic(f.i, 18)}</span> ${f.l}</button>`).join('')}${S.fasts[k] ? `<button class="opt" data-act="fast-set" data-d="${k}" data-f="">${ic('x', 18)} Clear</button>` : ''}</div>`); },
   'fast-set': t => { const k = t.dataset.d; if (t.dataset.f) S.fasts[k] = t.dataset.f; else delete S.fasts[k]; reward({ streak: false }); closeSheet(); feel('tap'); refresh(); },
   fav: t => { const i = +t.dataset.i, k = S.favs.indexOf(i); if (k >= 0) S.favs.splice(k, 1); else S.favs.push(i); save(); refresh(); },
-  'prayer-locate': () => navigator.geolocation ? navigator.geolocation.getCurrentPosition(p => { localStorage.setItem('iqra_loc', JSON.stringify({ lat: +p.coords.latitude.toFixed(3), lng: +p.coords.longitude.toFixed(3) })); loadPrayer(); }, () => toast('Location blocked. Enter your city instead.', 'compass')) : toast('Location not supported', 'compass'),
-  'prayer-city': () => { const city = val('pc-city'), country = val('pc-country'); if (!city || !country) return toast('Enter city and country', 'compass'); localStorage.setItem('iqra_loc', JSON.stringify({ city, country })); loadPrayer(); },
-  'prayer-reset': () => { localStorage.removeItem('iqra_loc'); clearTimers(); loadPrayer(); },
   'dhikr-pick': t => { S.dhikr.idx = +t.dataset.i; S.dhikr.count = 0; save(); refresh(); },
   'dhikr-tap': () => {
     const d = S.dhikr, p = DHIKR[d.idx]; d.count++; d.total++; haptic('tap'); sfx('tick');

@@ -33,7 +33,7 @@ export const defaultState = () => ({
   updatedAt: 0, profile: null, track: 'foundations',
   settings: { autoNext: true, repeat: 'off', translation: true, translit: false, fontSize: 30, reciter: 'ar.alafasy', sound: true, haptics: true, openAll: false, theme: 'lapis', avatar: 'moon', mode: 'auto', rate: 1, leniency: 'balanced' },
   xp: 0, coins: 0, streak: 0, bestStreak: 0, lastActive: '', daily: {}, surahs: {}, badges: {}, lessons: {}, session: null, recites: [], nur: [],
-  owned: { themes: ['lapis'], avatars: ['moon'] }, fasts: {}, dhikr: { total: 0, idx: 0, count: 0 },
+  owned: { themes: ['lapis'], avatars: ['moon'] }, fasts: {}, prayer: { log: {}, athan: {}, paid: {}, method: 2, school: 0, url: '' }, dhikr: { total: 0, idx: 0, count: 0 },
   favs: [], listen: { last: null, recents: [], favs: [] }, sessions: 0, perfects: 0, gamesPlayed: 0,
 });
 export const S = {};
@@ -181,11 +181,18 @@ export function burst() {
 export function sheet(html, cls = '') {
   closeSheet(true); const w = document.createElement('div'); w.className = 'sheet-wrap';
   w.innerHTML = `<div class="sheet ${cls}" role="dialog" aria-modal="true"><div class="grab"></div>${html}</div>`;
-  w.addEventListener('pointerdown', e => { if (e.target === w) closeSheet(); });
-  document.body.appendChild(w); requestAnimationFrame(() => w.classList.add('in')); sfx('open'); return w.firstElementChild;
+  const sh = w.firstElementChild; let armed = false, y0 = 0, dy = 0, drag = false;
+  // A tap outside closes the sheet when the tap finishes. The wrap stays in place until then, so the tap can never land on the page below.
+  w.addEventListener('pointerdown', e => { armed = e.target === w; });
+  w.addEventListener('click', e => { if (e.target === w && armed) { e.stopPropagation(); e.preventDefault(); closeSheet(); } armed = false; });
+  sh.addEventListener('pointerdown', e => { if (e.target.closest('input,textarea,button,a,select,canvas') || sh.scrollTop > 0) return; drag = true; y0 = e.clientY; dy = 0; sh.style.transition = 'none'; try { sh.setPointerCapture(e.pointerId); } catch { /* ignore */ } });
+  sh.addEventListener('pointermove', e => { if (!drag) return; dy = Math.max(0, e.clientY - y0); sh.style.transform = `translateY(${dy}px)`; });
+  const end = () => { if (!drag) return; drag = false; sh.style.transition = ''; if (dy > 90) { closeSheet(); } else sh.style.transform = ''; };
+  sh.addEventListener('pointerup', end); sh.addEventListener('pointercancel', end);
+  document.body.appendChild(w); requestAnimationFrame(() => w.classList.add('in')); sfx('open'); return sh;
 }
 export function closeSheet(now) {
-  $$('.sheet-wrap').forEach(x => { if (now) x.remove(); else { x.classList.remove('in'); x.classList.add('out'); setTimeout(() => x.remove(), 260); } });
+  $$('.sheet-wrap').forEach(x => { if (now) x.remove(); else if (!x.classList.contains('out')) { x.classList.remove('in'); x.classList.add('out'); const g = ev => { ev.stopPropagation(); ev.preventDefault(); }; document.addEventListener('click', g, true); setTimeout(() => { x.remove(); document.removeEventListener('click', g, true); }, 380); } });
 }
 /** Promise-based replacement for confirm()/prompt(). Resolves to true/false, or the typed text when `input` is set. */
 export function ask({ title, body = '', ok = 'OK', cancel = 'Cancel', danger = false, input = '' }) {
@@ -426,7 +433,11 @@ export async function api(path, method = 'GET', body) {
     body: body ? (isForm ? body : JSON.stringify(body)) : undefined,
   });
   let j = {}; try { j = await r.json(); } catch { /* non-json */ }
-  if (!r.ok) { const e = new Error(j.error || `Request failed (${r.status})`); e.status = r.status; throw e; }
+  if (!r.ok) {
+    const e = new Error(j.error || `Request failed (${r.status})`); e.status = r.status; e.data = j;
+    if (r.status === 403 && j.suspended) window.dispatchEvent(new CustomEvent('iqra-banned', { detail: j })); else if (r.status === 401 && j.gone) window.dispatchEvent(new CustomEvent('iqra-gone'));
+    throw e;
+  }
   return j;
 }
 function pushRemote() { if (Auth.remote && Auth.token && Auth.username) api('sync', 'PUT', { state: S }).catch(() => {}); }
@@ -454,7 +465,7 @@ export async function login({ id, password }) {
 export async function restore() {
   if (Auth.remote) {
     if (!Auth.token) return false;
-    try { const j = await api('me'); setToken(Auth.token, j.username, j.email); adopt(j.state); return true; } catch (e) { if (e.status === 401) setToken('', '', ''); return !!Auth.username; }
+    try { const j = await api('me'); setToken(Auth.token, j.username, j.email); adopt(j.state); return true; } catch (e) { if (e.status === 403 && e.data && e.data.suspended) return !!S.profile; if (e.status === 401) { setToken('', '', ''); if (e.data && e.data.gone) { try { localStorage.setItem('iqra_notice', 'That account was removed.'); } catch { /* ignore */ } } } return !!Auth.username; }
   }
   const a = localAcct();
   if (a && localStorage.getItem('iqra_local_in') && S.profile) { Auth.username = a.username; Auth.email = a.email; return true; }

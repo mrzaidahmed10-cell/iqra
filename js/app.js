@@ -1,6 +1,6 @@
 // Iqra: shell, routing, home, Quran, progress, glass navigation and the mini player.
 import {
-  S, $, $$, esc, toAr, todayKey, levelOf, xpFor, streakNow, sr, statusOf, reqLevel, unlocked, day, dayMinutes, questsNow, BADGES, Auth, probe, restore, register, login,
+  S, $, $$, esc, toAr, api, logout, todayKey, levelOf, xpFor, streakNow, sr, statusOf, reqLevel, unlocked, day, dayMinutes, questsNow, BADGES, Auth, probe, restore, register, login,
   save, getSurahList, getSurah, getAyahByGlobal, playQueue, togglePlayer, nextAyah, prevAyah, stopPlayer, seekPlayer, Player, bus, toast, sheet, closeSheet, feel, haptic, sfx,
   surahItems, listenState, setSleep, sleepLeft, hijri, TOTAL_AYAHS, learnedTotal, masteredTotal, applyTheme, trackFor, setLevel, nextItem, planItems, itemDone, lessonDone, dueReviews, setRate,
 } from './core.js';
@@ -11,6 +11,7 @@ import { startLesson, startSurah, startReview, resumeSession, hasSession, sessio
 import { openRecite, gradeOf } from './recite.js';
 import * as HL from './halal.js';
 import * as EX from './extras.js';
+import { viewPrayerTab, startAthan } from './prayer.js';
 import { openNur } from './nur.js';
 import { openArcade } from './games.js';
 import { back, ring, val, title, getErr, timers, clearTimers, refresh, lrow } from './ui.js';
@@ -71,7 +72,7 @@ const authErr = m => { const e = $('#err'); if (e) e.textContent = m; };
 // =====================================================================
 // Shell
 // =====================================================================
-const NAV = [['home', 'Home', 'home'], ['quran', 'Quran', 'book'], ['progress', 'Progress', 'chart'], ['more', 'More', 'more']];
+const NAV = [['home', 'Home', 'home'], ['quran', 'Quran', 'book'], ['prayer', 'Prayer', 'dome'], ['progress', 'Progress', 'chart'], ['more', 'More', 'more']];
 
 async function boot() {
   document.body.classList.remove('authing'); applyTheme();
@@ -80,7 +81,7 @@ async function boot() {
   initNav(); renderMini();
   try { surahList = await getSurahList(); } catch { surahList = []; }
   window.__surahList = surahList;
-  EX.loadBanner().then(() => { if ($('#view') && /^#\/(home)?$/.test(location.hash || '#/')) route(true); }); EX.refreshCommunity();
+  startAthan(); EX.loadBanner().then(() => { if ($('#view') && /^#\/(home)?$/.test(location.hash || '#/')) route(true); }); EX.refreshCommunity();
   route(); legalGate();
 }
 
@@ -99,8 +100,8 @@ let navApi = null;
 function initNav() {
   const nav = $('.nav'), pill = $('.nav-pill'), links = $$('.nav a'), icons = $$('.nav .ni');
   const pad = 8; let cw = 0, W = 0, active = 0, x = 0, v = 0, tx = 0, pressed = false, raf = 0, ws = 1, hs = 1, bulge = 0, bv = 0, lastCell = -1, glare = 0;
-  const center = i => pad + cw * (i + .5), cellAt = px => Math.max(0, Math.min(3, Math.floor((px - pad) / cw)));
-  const measure = () => { const r = nav.getBoundingClientRect(); W = r.width; cw = (W - 2 * pad) / 4; pill.style.width = cw + 'px'; if (!pressed) { x = tx = center(active); } paint(); };
+  const center = i => pad + cw * (i + .5), cellAt = px => Math.max(0, Math.min(links.length - 1, Math.floor((px - pad) / cw)));
+  const measure = () => { const r = nav.getBoundingClientRect(); W = r.width; cw = (W - 2 * pad) / links.length; pill.style.width = cw + 'px'; if (!pressed) { x = tx = center(active); } paint(); };
   function paint() {
     const sx = ws * (1 + bulge * .2), sy = hs * (1 - bulge * .1);
     pill.style.transform = `translate3d(${x - cw / 2}px,0,0) scale(${sx},${sy})`;
@@ -117,7 +118,7 @@ function initNav() {
     else { x = tx; v = 0; bulge = 0; ws = wt; hs = ht; raf = 0; paint(); }
   }
   const kick = () => { if (!raf) raf = requestAnimationFrame(frame); };
-  const clampX = px => Math.max(center(0) - cw * .2, Math.min(center(3) + cw * .2, px));
+  const clampX = px => Math.max(center(0) - cw * .2, Math.min(center(links.length - 1) + cw * .2, px));
   const hover = c => links.forEach((a, i) => a.classList.toggle('hot', pressed && i === c));
   nav.addEventListener('pointerdown', e => {
     if (e.button > 0) return; pressed = true; try { nav.setPointerCapture(e.pointerId); } catch { /* ignore */ }
@@ -160,14 +161,14 @@ bus.addEventListener('audio', e => { $$('.ayah.playing').forEach(x => x.classLis
 // ---------- router
 const VIEWS = {
   home: viewHome, path: viewPath, quran: viewQuran, listen: viewListen, surah: viewSurah, progress: viewProgress, more: viewMore,
-  account: P.viewAccount, settings: P.viewSettings, shop: P.viewShop, fasting: P.viewFasting, hadith: P.viewHadith, advice: P.viewAdvice, prayer: P.viewPrayer, dhikr: P.viewDhikr, alphabet: P.viewAlphabet, about: P.viewAbout, halal: HL.viewHalal, community: EX.viewCommunity,
+  account: P.viewAccount, settings: P.viewSettings, shop: P.viewShop, fasting: P.viewFasting, hadith: P.viewHadith, advice: P.viewAdvice, prayer: viewPrayerTab, dhikr: P.viewDhikr, alphabet: P.viewAlphabet, about: P.viewAbout, halal: HL.viewHalal, community: EX.viewCommunity,
 };
 async function route(keep = false) {
   const view = $('#view'); if (!view) return;
   clearTimers();
   let [a = 'home', b] = (location.hash.slice(2) || 'home').split('/');
   if (a === 'more' && b && VIEWS[b]) { a = b; b = undefined; }
-  const tab = { home: 0, path: 0, quran: 1, listen: 1, surah: 1, progress: 2 }[a] ?? 3; navApi && navApi.set(tab);
+  const tab = { home: 0, path: 0, quran: 1, listen: 1, surah: 1, prayer: 2, progress: 3 }[a] ?? 4; navApi && navApi.set(tab);
   const tok = ++rtok, y = view.scrollTop || window.scrollY;
   const fn = VIEWS[a] || viewHome; view.dataset.v = a;
   try {
@@ -339,7 +340,7 @@ async function viewProgress() {
 function viewMore() {
   const G = [
     ['Learn', [['path', 'route', 'Your path', 'Lessons and library'], ['alphabet', 'type', 'Arabic alphabet', 'Letters and sounds'], ['advice', 'bulb', 'Learning advice', 'Memorization tips']]],
-    ['Daily life', [['community', 'users', 'Community', 'News from the Iqra team'], ['halal', 'scan', 'Halal scanner', 'Scan a barcode to check ingredients'], ['prayer', 'dome', 'Prayer times', 'Next prayer countdown'], ['dhikr', 'beads', 'Dhikr counter', 'Tasbih'], ['fasting', 'moon', 'Fasting log', 'Track your fasts'], ['hadith', 'quote', 'Hadith', 'Daily wisdom']]],
+    ['Daily life', [['community', 'users', 'Community', 'News from the Iqra team'], ['halal', 'scan', 'Halal scanner', 'Scan a barcode to check ingredients'], ['dhikr', 'beads', 'Dhikr counter', 'Tasbih'], ['fasting', 'moon', 'Fasting log', 'Track your fasts'], ['hadith', 'quote', 'Hadith', 'Daily wisdom']]],
     ['You', [['account', 'user', 'Account', 'Profile, level and sign-in'], ['shop', 'bag', 'Rewards', `${S.coins} coins to spend`], ['settings', 'settings', 'Settings', 'Appearance, sound, reciter']]],
     ['About', [['about', 'info', 'About Iqra', 'How it works'], ['privacy', 'shield', 'Privacy policy', 'How your data is used'], ['terms', 'file', 'Terms of use', 'The rules of the app']]],
   ];
@@ -420,9 +421,25 @@ document.addEventListener('change', e => {
 // =====================================================================
 // Init
 // =====================================================================
+// ---------- suspended / removed accounts
+function showBan(d = {}) {
+  try { localStorage.setItem('iqra_ban', JSON.stringify(d)); } catch { /* ignore */ }
+  let g = $('.ban'); if (!g) { g = document.createElement('div'); g.className = 'ban'; g.setAttribute('role', 'alertdialog'); g.setAttribute('aria-modal', 'true'); document.body.append(g); document.body.classList.add('noscroll'); requestAnimationFrame(() => g.classList.add('in')); }
+  const until = d.until ? new Date(d.until).toLocaleDateString('en-US', { month: 'long', day: 'numeric' }) : '';
+  g.innerHTML = `<div class="ban-card"><span class="ico big">${ic('shield', 28)}</span><h2>Account suspended</h2><p class="muted">${until ? `Your access is paused until <b>${esc(until)}</b>.` : 'Your access has been paused.'}${d.reason ? ` Reason: ${esc(d.reason)}` : ''}</p><p class="muted small">If you think this is a mistake, reach out through the project's issues page.</p><div class="col-gap"><button class="btn primary" id="ban-re">Check again</button><button class="btn" id="ban-out">Sign out</button></div></div>`;
+  $('#ban-re', g).onclick = async e => { const b = e.currentTarget; b.disabled = true; try { await api('me'); try { localStorage.removeItem('iqra_ban'); } catch { /* ignore */ } g.classList.remove('in'); setTimeout(() => { g.remove(); document.body.classList.remove('noscroll'); route(true); }, 250); } catch (er) { b.disabled = false; if (!(er.data && er.data.suspended)) toast(er.message || 'Could not check right now'); } };
+  $('#ban-out', g).onclick = async () => { try { localStorage.removeItem('iqra_ban'); } catch { /* ignore */ } try { await logout(); } catch { /* ignore */ } location.hash = ''; location.reload(); };
+}
+window.addEventListener('iqra-banned', e => showBan(e.detail));
+window.addEventListener('iqra-gone', async () => { try { localStorage.setItem('iqra_notice', 'That account was removed.'); } catch { /* ignore */ } try { await logout(); } catch { /* ignore */ } location.hash = ''; location.reload(); });
+let lastCheck = 0;
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && Auth.token && Date.now() - lastCheck > 60000) { lastCheck = Date.now(); api('me').catch(() => {}); } });
+
 (async function init() {
   applyTheme(); await probe();
-  if (await restore() && S.profile) boot(); else { step = 'welcome'; renderAuth(); }
+  const ok = await restore() && S.profile, note = (() => { try { const n = localStorage.getItem('iqra_notice'); localStorage.removeItem('iqra_notice'); return n; } catch { return ''; } })();
+  if (ok) { boot(); let bn = null; try { bn = JSON.parse(localStorage.getItem('iqra_ban')); } catch { /* none */ } if (bn && !$('.ban')) { showBan(bn); if (Auth.token) api('me').then(() => { try { localStorage.removeItem('iqra_ban'); } catch { /* ignore */ } $('.ban')?.remove(); document.body.classList.remove('noscroll'); }).catch(() => {}); } } else { step = 'welcome'; renderAuth(); }
+  if (note) setTimeout(() => toast(note, 'info'), 400);
 })();
 void FOUNDATION_SURAHS;
 

@@ -77,3 +77,9 @@ Speech-to-text hears words, not harakat. It can reliably catch skipped, swapped 
 ## v6 notes
 - Add a Cloudflare secret `ADMIN_PASSWORD` to enable the team-only admin tools. Without it they stay switched off.
 - Recitation grading cross-checks two speech models, compares each flagged word's sound with the reference recitation, and refines word cuts with a short AI pass.
+
+## v7
+- Sheets close on any tap outside; swipe down also works.
+- Suspensions: timed or permanent, clear in-app message, removed accounts are signed out.
+- Community: photos (dev portal upload), likes, comments, per-post comment lock.
+- Prayer tab: location times, signed daily checklist, streak, week view, Athan (plays while the app is open; set a custom audio link in Prayer settings).

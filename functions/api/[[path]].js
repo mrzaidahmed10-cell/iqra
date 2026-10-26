@@ -40,13 +40,20 @@ const okUser = u => /^[a-z0-9_]{3,20}$/.test(u);
 const okEmail = e => /^[^\s@]{1,64}@[^\s@]{1,255}\.[^\s@]{2,}$/.test(e) && e.length <= 254;
 
 async function readBody(request) { try { return await request.json(); } catch { return null; } }
-async function authed(request, env) {
-  const t = (request.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '');
-  if (!t) return null;
-  const u = await env.IQRA_KV.get('s:' + t);
-  if (!u) return null;
-  const rec = await env.IQRA_KV.get('u:' + u, 'json');
-  return rec && !rec.suspended ? { u, rec, t } : null;
+async function sessionOf(request, env) {
+  const t = (request.headers.get('Authorization') || '').replace(/^Bearer\s+/i, ''); if (!t || !env.IQRA_KV) return null;
+  const u = await env.IQRA_KV.get('s:' + t); if (!u) return null;
+  return { u, t, rec: await env.IQRA_KV.get('u:' + u, 'json') };
+}
+const suspendedNow = r => !!(r && r.suspended && !(r.until && Date.now() > r.until));
+async function authed(request, env) { const x = await sessionOf(request, env); return x && x.rec && !suspendedNow(x.rec) ? x : null; }
+// Signed-in check that tells the app why it was refused (suspended, or the account was removed).
+async function gate(request, env) {
+  const x = await sessionOf(request, env);
+  if (!x) return { res: J({ error: 'Please sign in again.' }, 401) };
+  if (!x.rec) return { res: J({ error: 'This account no longer exists.', gone: true }, 401) };
+  if (suspendedNow(x.rec)) return { res: J({ error: 'This account has been suspended.', suspended: true, reason: x.rec.reason || '', until: x.rec.until || 0 }, 403) };
+  return { a: x };
 }
 async function newSession(env, username) {
   const token = hex(rnd(32));
@@ -66,7 +73,7 @@ export async function onRequest({ request, env, params }) {
   try {
     if (path === 'health') return J({ ok: true, kv: !!env.IQRA_KV, groq: !!env.GROQ_API_KEY });
     if (path === 'config' && m === 'GET') { const c = await getCfg(env); return J({ banner: c.banner.on && c.banner.text ? c.banner : null, maintenance: c.maintenance.on ? c.maintenance : null, registrations: c.registrations }); }
-    if (path === 'community' && m === 'GET') return J({ posts: sortPosts(env.IQRA_KV ? (await env.IQRA_KV.get('community', 'json')) || [] : []) });
+    if (path === 'community' && m === 'GET') return communityList(request, env);
     if (path.startsWith('admin/') || path === 'admin') return admin(path.slice(6), m, request, env);
 
     // ---------- AI coach ----------
@@ -101,15 +108,17 @@ export async function onRequest({ request, env, params }) {
       const username = id.includes('@') ? await kv.get('e:' + id) : id;
       const rec = username ? await kv.get('u:' + username, 'json') : null;
       if (!(await checkPw(rec, password, env))) return J({ error: 'Wrong username or password.' }, 401);
-      if (rec.suspended) return J({ error: 'This account has been suspended. Contact the Iqra team if you think this is a mistake.' }, 403);
+      if (rec.suspended && !suspendedNow(rec)) { delete rec.suspended; delete rec.until; delete rec.reason; await kv.put('u:' + rec.username, JSON.stringify(rec)); }
+      if (suspendedNow(rec)) return J({ error: 'This account has been suspended' + (rec.until ? ' until ' + new Date(rec.until).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '') + '.' + (rec.reason ? ' Reason: ' + rec.reason : ''), suspended: true, reason: rec.reason || '', until: rec.until || 0 }, 403);
       await kv.delete('f:' + id); await bump(env, 'login');
       if ((rec.v || 1) < 2 || (!rec.pp && env.PW_PEPPER)) await kv.put('u:' + rec.username, JSON.stringify({ ...rec, ...(await newCred(password, env)) })); // upgrade old hashes
       return J({ token: await newSession(env, rec.username), username: rec.username, email: rec.email, state: rec.state });
     }
 
-    const a = await authed(request, env);
-    if (path === 'logout' && m === 'POST') { if (a) await kv.delete('s:' + a.t); return J({ ok: true }); }
-    if (!a) return J({ error: 'Please sign in again.' }, 401);
+    if (path === 'logout' && m === 'POST') { const x = await sessionOf(request, env); if (x) await kv.delete('s:' + x.t); return J({ ok: true }); }
+    if (path.startsWith('img/') && m === 'GET') return serveImg(path.slice(4), env);
+    if (path.startsWith('community/')) return communityApi(path.slice(10), m, request, env);
+    const gt = await gate(request, env); if (gt.res) return gt.res; const a = gt.a;
 
     if (path === 'me' && m === 'GET') return J({ username: a.u, email: a.rec.email, state: a.rec.state });
 
@@ -132,7 +141,7 @@ export async function onRequest({ request, env, params }) {
       const rec = { ...a.rec, username, email };
       await kv.put('u:' + username, JSON.stringify(rec));
       if (email !== a.rec.email) { await kv.delete('e:' + a.rec.email); await kv.put('e:' + email, username); } else if (username !== a.u) await kv.put('e:' + email, username);
-      if (username !== a.u) { await kv.delete('u:' + a.u); await kv.put('s:' + a.t, username, { expirationTtl: SESSION_TTL }); }
+      if (username !== a.u) { const ul = await kv.get('ul:' + a.u); if (ul) { await kv.put('ul:' + username, ul); await kv.delete('ul:' + a.u); } await kv.delete('u:' + a.u); await kv.put('s:' + a.t, username, { expirationTtl: SESSION_TTL }); }
       return J({ username, email });
     }
 
@@ -169,6 +178,52 @@ async function bump(env, k) { // rough daily counters for the dev portal
 }
 const sortPosts = l => [...l].sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || b.at - a.at);
 const KINDS = ['news', 'update', 'reminder', 'dua', 'event'];
+const okId = x => typeof x === 'string' && /^[0-9a-f]{8,16}$/.test(x);
+
+// ---------- community: posts, likes, comments, photos ----------
+const pub = (p, liked) => ({ id: p.id, title: p.title, body: p.body, kind: p.kind, link: p.link || '', pinned: !!p.pinned, at: p.at, imgs: p.imgs || [], likes: p.likes || 0, cc: p.cc || 0, closed: !!p.nocomments, liked: !!liked });
+async function communityList(request, env) {
+  if (!env.IQRA_KV) return J({ posts: [] });
+  const list = sortPosts((await env.IQRA_KV.get('community', 'json')) || []).slice(0, 40), x = await sessionOf(request, env).catch(() => null);
+  const mine = x && x.rec && !suspendedNow(x.rec) ? (await env.IQRA_KV.get('ul:' + x.u, 'json')) || [] : [];
+  return J({ posts: list.map(p => pub(p, mine.includes(p.id))), me: x && x.rec ? x.u : '' });
+}
+async function communityApi(sub, m, request, env) {
+  const kv = env.IQRA_KV; if (!kv) return J({ error: 'Not available' }, 503); const url = new URL(request.url);
+  if (sub === 'comments' && m === 'GET') {
+    const id = url.searchParams.get('id') || ''; if (!okId(id)) return J({ error: 'Bad request' }, 400);
+    const x = await sessionOf(request, env).catch(() => null), me = x && x.rec ? x.u : '', list = (await kv.get('cm:' + id, 'json')) || [];
+    return J({ comments: list.map(c => ({ id: c.id, user: c.user, text: c.text, at: c.at, mine: !!me && c.user === me })), me });
+  }
+  if (m !== 'POST') return J({ error: 'Not found' }, 404);
+  const gt = await gate(request, env); if (gt.res) return gt.res; const a = gt.a, b = (await readBody(request)) || {};
+  if (!okId(b.id)) return J({ error: 'Bad request' }, 400);
+  const posts = (await kv.get('community', 'json')) || [], post = posts.find(p => p.id === b.id); if (!post) return J({ error: 'That post is gone.' }, 404);
+  if (sub === 'like') {
+    const mine = (await kv.get('ul:' + a.u, 'json')) || [], had = mine.includes(post.id), now = !had;
+    await kv.put('ul:' + a.u, JSON.stringify(now ? [...mine, post.id].slice(-300) : mine.filter(i => i !== post.id)));
+    post.likes = Math.max(0, (post.likes || 0) + (now ? 1 : -1)); await kv.put('community', JSON.stringify(posts)); return J({ liked: now, likes: post.likes });
+  }
+  if (sub === 'comment') {
+    if (post.nocomments) return J({ error: 'Comments are closed on this post.' }, 403);
+    const text = String(b.text || '').replace(/\s+/g, ' ').trim().slice(0, 300); if (!text) return J({ error: 'Write something first.' }, 400);
+    if (!(await throttle(env, 'cmt:' + a.u, 8, 600))) return J({ error: 'Slow down a little. Try again in a few minutes.' }, 429);
+    const list = (await kv.get('cm:' + post.id, 'json')) || [], c = { id: hex(rnd(4)), user: a.u, text, at: Date.now() };
+    list.push(c); await kv.put('cm:' + post.id, JSON.stringify(list.slice(-300))); post.cc = Math.min(300, list.length); await kv.put('community', JSON.stringify(posts));
+    return J({ comment: { ...c, mine: true }, cc: post.cc });
+  }
+  if (sub === 'comment-delete') {
+    const list = (await kv.get('cm:' + post.id, 'json')) || [], c = list.find(x => x.id === b.cid); if (!c || c.user !== a.u) return J({ error: 'You can only delete your own comments.' }, 403);
+    const next = list.filter(x => x.id !== b.cid); await kv.put('cm:' + post.id, JSON.stringify(next)); post.cc = next.length; await kv.put('community', JSON.stringify(posts)); return J({ ok: true, cc: post.cc });
+  }
+  return J({ error: 'Not found' }, 404);
+}
+const sniff = u => u[0] === 0xFF && u[1] === 0xD8 ? 'image/jpeg' : u[0] === 0x89 && u[1] === 0x50 && u[2] === 0x4E ? 'image/png' : u[0] === 0x52 && u[1] === 0x49 && u[8] === 0x57 && u[9] === 0x45 ? 'image/webp' : '';
+async function serveImg(id, env) {
+  if (!env.IQRA_KV || !/^[0-9a-f]{16}$/.test(id)) return new Response('Not found', { status: 404 });
+  const r = await env.IQRA_KV.getWithMetadata('img:' + id, 'arrayBuffer'); if (!r || !r.value) return new Response('Not found', { status: 404 });
+  return new Response(r.value, { headers: { 'Content-Type': (r.metadata && r.metadata.type) || 'image/jpeg', 'Cache-Control': 'public, max-age=31536000, immutable', 'X-Content-Type-Options': 'nosniff' } });
+}
 
 // ---------- dev portal API (needs the ADMIN_PASSWORD secret) ----------
 async function adminAuth(request, env) {
@@ -177,7 +232,7 @@ async function adminAuth(request, env) {
 }
 async function logA(env, action, detail) { try { const l = (await env.IQRA_KV.get('alog', 'json')) || []; l.unshift({ at: Date.now(), action, detail: String(detail || '').slice(0, 120) }); await env.IQRA_KV.put('alog', JSON.stringify(l.slice(0, 100))); } catch { /* best effort */ } }
 const digest = async s => b64(await crypto.subtle.digest('SHA-256', enc.encode(s)));
-const brief = r => { const st = r.state || {}; return { username: r.username, email: r.email, created: r.created || 0, suspended: !!r.suspended, reason: r.reason || '', xp: st.xp || 0, level: st.profile?.level || '', streak: st.streak || 0, lastActive: st.lastActive || '', lessons: Object.keys(st.lessons || {}).length, recites: (st.recites || []).length, name: st.profile?.name || '' }; };
+const brief = r => { const st = r.state || {}; return { username: r.username, email: r.email, created: r.created || 0, suspended: suspendedNow(r), until: r.until || 0, reason: r.reason || '', xp: st.xp || 0, level: st.profile?.level || '', streak: st.streak || 0, lastActive: st.lastActive || '', lessons: Object.keys(st.lessons || {}).length, recites: (st.recites || []).length, name: st.profile?.name || '' }; };
 async function admin(sub, m, request, env) {
   if (!env.ADMIN_PASSWORD) return J({ error: 'Dev portal is not set up. Add the ADMIN_PASSWORD secret in Cloudflare.' }, 503);
   if (!env.IQRA_KV) return J({ error: 'KV is not bound.' }, 503); const kv = env.IQRA_KV;
@@ -187,7 +242,7 @@ async function admin(sub, m, request, env) {
     const token = hex(rnd(32)); await kv.put('a:' + token, '1', { expirationTtl: 28800 }); await logA(env, 'login', ip); return J({ token });
   }
   if (!(await adminAuth(request, env))) return J({ error: 'Session expired. Sign in again.' }, 401);
-  const b = m === 'POST' ? (await readBody(request)) || {} : {}, url = new URL(request.url);
+  const b = m === 'POST' && sub !== 'upload' ? (await readBody(request)) || {} : {}, url = new URL(request.url);
   if (sub === 'logout') { await kv.delete('a:' + (request.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '')); return J({ ok: true }); }
   if (sub === 'overview') {
     let total = 0, cursor, susp = 0; for (let i = 0; i < 10; i++) { const r = await kv.list({ prefix: 'u:', limit: 1000, cursor }); total += r.keys.length; if (r.list_complete) break; cursor = r.cursor; }
@@ -203,21 +258,32 @@ async function admin(sub, m, request, env) {
   }
   if (sub === 'account' && m === 'POST') {
     const u = String(b.username || '').toLowerCase(), rec = await kv.get('u:' + u, 'json'); if (!rec) return J({ error: 'No such account.' }, 404);
-    if (b.action === 'suspend') { rec.suspended = true; rec.reason = String(b.reason || '').slice(0, 200); await kv.put('u:' + u, JSON.stringify(rec)); await logA(env, 'suspend', u); return J({ ok: true }); }
-    if (b.action === 'unsuspend') { delete rec.suspended; delete rec.reason; await kv.put('u:' + u, JSON.stringify(rec)); await logA(env, 'unsuspend', u); return J({ ok: true }); }
-    if (b.action === 'delete') { await kv.delete('u:' + u); await kv.delete('e:' + rec.email); await logA(env, 'delete', u); return J({ ok: true }); }
+    if (b.action === 'suspend') { rec.suspended = true; rec.reason = String(b.reason || '').slice(0, 200); const dd = Math.round(+b.days); if (dd > 0) rec.until = Date.now() + Math.min(dd, 3650) * 864e5; else delete rec.until; await kv.put('u:' + u, JSON.stringify(rec)); await logA(env, 'suspend', u); return J({ ok: true }); }
+    if (b.action === 'unsuspend') { delete rec.suspended; delete rec.reason; delete rec.until; await kv.put('u:' + u, JSON.stringify(rec)); await logA(env, 'unsuspend', u); return J({ ok: true }); }
+    if (b.action === 'delete') { await kv.delete('u:' + u); await kv.delete('e:' + rec.email); await kv.delete('ul:' + u); await logA(env, 'delete', u); return J({ ok: true }); }
     if (b.action === 'resetpw') { const temp = hex(rnd(5)) + 'Aa1'; await kv.put('u:' + u, JSON.stringify({ ...rec, ...(await newCred(temp, env)) })); await logA(env, 'reset password', u); return J({ ok: true, temp }); }
     return J({ error: 'Unknown action.' }, 400);
+  }
+  if (sub === 'upload' && m === 'POST') {
+    const buf = await request.arrayBuffer(); if (buf.byteLength < 100 || buf.byteLength > 1500000) return J({ error: 'Photos must be under 1.5 MB.' }, 400);
+    const type = sniff(new Uint8Array(buf)); if (!type) return J({ error: 'Use a JPEG, PNG or WebP photo.' }, 400);
+    const id = hex(rnd(8)); await kv.put('img:' + id, buf, { metadata: { type } }); return J({ id });
+  }
+  if (sub === 'comments') { const id = url.searchParams.get('id') || ''; return J({ comments: okId(id) ? (await kv.get('cm:' + id, 'json')) || [] : [] }); }
+  if (sub === 'comment-delete' && m === 'POST') {
+    const posts = (await kv.get('community', 'json')) || [], post = posts.find(p => p.id === b.id); if (!post || !okId(b.id)) return J({ error: 'No such post.' }, 404);
+    const next = ((await kv.get('cm:' + b.id, 'json')) || []).filter(x => x.id !== b.cid); await kv.put('cm:' + b.id, JSON.stringify(next)); post.cc = next.length; await kv.put('community', JSON.stringify(posts)); await logA(env, 'delete comment', b.id); return J({ ok: true });
   }
   if (sub === 'posts') return J({ posts: sortPosts((await kv.get('community', 'json')) || []) });
   if (sub === 'post' && m === 'POST') {
     const title = String(b.title || '').trim().slice(0, 80), body = String(b.body || '').trim().slice(0, 2000), kind = KINDS.includes(b.kind) ? b.kind : 'news', link = /^https:\/\//.test(String(b.link || '')) ? String(b.link).slice(0, 300) : '';
     if (!title || !body) return J({ error: 'A post needs a title and some text.' }, 400);
+    const imgs = (Array.isArray(b.imgs) ? b.imgs : []).filter(x => /^[0-9a-f]{16}$/.test(x)).slice(0, 4);
     const list = (await kv.get('community', 'json')) || []; let post = b.id ? list.find(x => x.id === b.id) : null;
-    if (post) Object.assign(post, { title, body, kind, link, pinned: !!b.pinned, upd: Date.now() }); else { post = { id: hex(rnd(4)), title, body, kind, link, pinned: !!b.pinned, at: Date.now() }; list.unshift(post); }
+    if (post) { for (const old of post.imgs || []) if (!imgs.includes(old)) await kv.delete('img:' + old); Object.assign(post, { title, body, kind, link, imgs, nocomments: !!b.nocomments, pinned: !!b.pinned, upd: Date.now() }); } else { post = { id: hex(rnd(4)), title, body, kind, link, imgs, nocomments: !!b.nocomments, pinned: !!b.pinned, at: Date.now(), likes: 0, cc: 0 }; list.unshift(post); }
     await kv.put('community', JSON.stringify(list.slice(0, 100))); await logA(env, b.id ? 'edit post' : 'new post', title); return J({ ok: true, post });
   }
-  if (sub === 'post-delete' && m === 'POST') { const list = ((await kv.get('community', 'json')) || []).filter(x => x.id !== b.id); await kv.put('community', JSON.stringify(list)); await logA(env, 'delete post', b.id); return J({ ok: true }); }
+  if (sub === 'post-delete' && m === 'POST') { const all = (await kv.get('community', 'json')) || [], gone = all.find(x => x.id === b.id), list = all.filter(x => x.id !== b.id); if (gone) { for (const im of gone.imgs || []) await kv.delete('img:' + im); await kv.delete('cm:' + gone.id); } await kv.put('community', JSON.stringify(list)); await logA(env, 'delete post', b.id); return J({ ok: true }); }
   if (sub === 'config' && m === 'POST') {
     const n = (v, lo, hi, d) => Number.isFinite(+v) ? Math.max(lo, Math.min(hi, Math.round(+v))) : d, c = await getCfg(env);
     const next = { banner: { on: !!b.banner?.on, text: String(b.banner?.text || '').slice(0, 200), tone: ['info', 'warn', 'good'].includes(b.banner?.tone) ? b.banner.tone : 'info' }, maintenance: { on: !!b.maintenance?.on, text: String(b.maintenance?.text || '').slice(0, 200) }, registrations: b.registrations !== false, coach: b.coach !== false, nur: b.nur !== false, limits: { coach: n(b.limits?.coach, 1, 1000, c.limits.coach), nur: n(b.limits?.nur, 1, 1000, c.limits.nur) } };
@@ -231,8 +297,7 @@ async function admin(sub, m, request, env) {
 async function guard(request, env) {
   if (!env.GROQ_API_KEY) return { res: J({ error: 'The coach is unavailable right now.' }, 503) };
   if (env.IQRA_KV) {
-    const a = await authed(request, env);
-    if (!a) return { res: J({ error: 'Please sign in again.' }, 401) };
+    const gt = await gate(request, env); if (gt.res) return gt; const a = gt.a;
     const day = new Date().toISOString().slice(0, 10), cfg = await getCfg(env), pn = new URL(request.url), isT = pn.pathname.endsWith('/transcribe'), isN = pn.pathname.endsWith('/nur'), extra = pn.searchParams.get('x') === '1';
     if (cfg.maintenance.on) return { res: J({ error: cfg.maintenance.text || 'Iqra is getting a quick update. Please try again soon.' }, 503) };
     if (isT && cfg.coach === false) return { res: J({ error: 'The coach is taking a short break. Please try again later.' }, 503) };
