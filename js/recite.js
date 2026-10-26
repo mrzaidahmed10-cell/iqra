@@ -41,6 +41,20 @@ function align(E, H) {
   return { lo, hi, sc, sp };
 }
 export const gradeOf = s => s >= 98 ? ['Flawless', 'good'] : s >= 95 ? ['Mastery level', 'good'] : s >= 85 ? ['Very good', 'good'] : s >= 70 ? ['Passed', 'mid'] : ['Keep practicing', 'low'];
+// ---- coach memory: words you missed stay on a watch list until you get them right twice in a row ----
+const wkey = (n, a, k) => `${n}:${a}:${k}`;
+export const weakList = () => Object.values(S.weak || {});
+export const weakCount = () => weakList().length;
+export function remember(surahN, W, marks, L, incomplete) {
+  const out = { fixed: [], still: [], fresh: [] }; if (incomplete) return out; const w = S.weak = S.weak || {};
+  W.forEach((x, i) => {
+    const k = wkey(surahN, x.a, x.pos), m = marks[i], bad = m && m.type !== 'taj' && !(L.passPron && m.type === 'pron'), old = w[k];
+    if (bad) { w[k] = { n: surahN, a: x.a, p: x.pos, w: x.w, c: (old ? old.c : 0) + 1, ok: 0, t: m.type, issue: m.issue || '', at: Date.now() }; (old ? out.still : out.fresh).push(i); }
+    else if (old) { old.ok = (old.ok || 0) + 1; out.fixed.push(i); if (old.ok >= 2) { delete w[k]; S.cleared = (S.cleared || 0) + 1; } }
+  });
+  const keys = Object.keys(w); if (keys.length > 150) keys.sort((a, b) => w[a].at - w[b].at).slice(0, keys.length - 150).forEach(k => delete w[k]);
+  return out;
+}
 const lenOf = () => LENIENCY[S.settings.leniency] || LENIENCY.balanced;
 // Letters that are easy to swap when reciting (and that the speech model often writes as it hears them)
 const CONF = ['صس', 'ضد', 'ظذ', 'طت', 'قك', 'غخ', 'ثس', 'ذز', 'حه', 'شس', 'عا', 'خح', 'ظز', 'ضظ'];
@@ -78,8 +92,9 @@ export function openRecite(surah, ayahs, opts = {}) {
   }
   function ready() {
     cleanup(); result = null; const sel = ayahs.filter(a => a.n >= range.from && a.n <= range.to); W = [];
-    sel.forEach(a => { const ws = wordsOf(a.ar); ws.forEach((w, i) => W.push({ w, a: a.n, last: i === ws.length - 1 })); });
+    sel.forEach(a => { const ws = wordsOf(a.ar); ws.forEach((w, i) => W.push({ w, a: a.n, pos: i, last: i === ws.length - 1 })); });
     ov.innerHTML = `${top((range.mastery ? 'Mastery · ' : '') + surah.en)}<div class="ov-body"><p class="coach-note">${ic('mic', 18)}<span>Recite <b>ayah ${range.from}${range.to > range.from ? ' to ' + range.to : ''}</b> in one go, at a steady pace. ${range.mastery ? 'Scoring 95% or higher counts toward mastery.' : 'You will get a grade and a list of things to fix.'}</span></p>
+      ${(() => { const hw = W.filter(x => (S.weak || {})[wkey(surah.n, x.a, x.pos)]); return hw.length ? `<p class="coach-note">${ic('target', 18)}<span><b>Watch these words</b> that tripped you up before:<br><span class="ar wlist" dir="rtl">${hw.slice(0, 12).map(x => esc(x.w)).join(' · ')}</span></span></p>` : ''; })()}
       <label class="switch-row"><span><b>Hide the text</b><small class="muted">Recite from memory${range.mastery ? ' (+50 XP)' : ''}</small></span><input type="checkbox" id="hard" ${hard ? 'checked' : ''}></label>
       <div class="rtext ar" id="rtext" dir="rtl">${textHTML()}</div></div>
       <footer class="ov-foot"><button class="btn primary big" data-k="rec">${ic('mic', 20)} Start recording</button></footer>`;
@@ -168,7 +183,7 @@ export function openRecite(surah, ayahs, opts = {}) {
       let coach = null;
       if (missing / m <= .35) {
         const p2 = $('#ph', ov); if (p2) p2.textContent = 'Your coach is reviewing tajweed…';
-        try { coach = await api('coach', 'POST', { leniency: S.settings.leniency || 'balanced', surah: surah.en, transcript: t.text, words: m <= 250 ? W.map(x => x.w) : null, candidates: cands.map(c => ({ i: c.i, expected: W[c.i].w, heard: c.heard, near: c.heard ? null : near(c.i), sim: +c.s.toFixed(2), alt: c.alt || undefined, ac: c.z != null ? +c.z.toFixed(1) : undefined, suspect: c.st === 'ok' ? true : undefined })) }); } catch { coach = null; }
+        try { coach = await api('coach', 'POST', { leniency: S.settings.leniency || 'balanced', surah: surah.en, history: W.map((x, i) => { const o = (S.weak || {})[wkey(surah.n, x.a, x.pos)]; return o ? { i, expected: x.w, misses: o.c, issue: o.issue } : null; }).filter(Boolean).slice(0, 40), transcript: t.text, words: m <= 250 ? W.map(x => x.w) : null, candidates: cands.map(c => ({ i: c.i, expected: W[c.i].w, heard: c.heard, near: c.heard ? null : near(c.i), sim: +c.s.toFixed(2), alt: c.alt || undefined, ac: c.z != null ? +c.z.toFixed(1) : undefined, suspect: c.st === 'ok' ? true : undefined })) }); } catch { coach = null; }
       }
       const marks = {};
       for (const c of cands) {
@@ -210,7 +225,7 @@ export function openRecite(surah, ayahs, opts = {}) {
   }
   function showResult() {
     const r = result; let gain = null, mastered = false;
-    day().recites++;
+    day().recites++; r.mem = remember(surah.n, W, r.marks, lenOf(), r.incomplete); r.mem.cleared = r.mem.fixed.filter(i => !(S.weak || {})[wkey(surah.n, W[i].a, W[i].pos)]);
     S.recites.unshift({ at: Date.now(), n: surah.n, name: surah.en, from: range.from, to: range.to, score: r.score, errors: r.errors, mastery: range.mastery });
     S.recites = S.recites.slice(0, 60);
     if (range.mastery && r.pass) {
@@ -232,6 +247,7 @@ export function openRecite(surah, ayahs, opts = {}) {
       ${r.ec ? `<div class="banner">Extra credit +${r.ec}% for words you re-recited (${r.score}% on the full recitation). It counts toward passing only. Mastery needs 95% or higher on the whole recitation.</div>` : ''}
       ${gain ? `<div class="banner gold">${mastered ? `<b>${esc(surah.en)} mastered.</b> ` : range.mastery && r.pass ? '<b>Part passed.</b> ' : ''}+${gain.xp} XP, +${gain.coins} coins</div>` : ''}
       ${!r.incomplete ? (r.pass ? '' : r.moveOn ? `<div class="banner">${range.mastery ? 'Passed, but mastery needs 95% or higher.' : 'Passed. Reach 95% or higher for mastery.'}</div>` : `<div class="banner bad">Below 70%. Listen once more and try again.</div>`) : ''}
+      ${(() => { const m = r.mem; if (!m || !(m.fixed.length || m.still.length)) return ''; const f = m.fixed.length, st = m.still.length; return `<div class="banner ${st && !f ? '' : 'gold'}">${f ? `<b>Progress:</b> ${f} word${f > 1 ? 's' : ''} you missed before ${f > 1 ? 'were' : 'was'} clean this time${m.cleared.length ? ` (${m.cleared.length} cleared from your watch list)` : ''}. ` : ''}${st ? `${st} still need${st > 1 ? '' : 's'} work: <span class="ar">${m.still.slice(0, 6).map(i => esc(W[i].w)).join(' · ')}</span>` : ''}</div>`; })()}
       ${(() => { const t = Object.entries(tipLog).sort((a, b) => b[1] - a[1])[0]; return t && t[1] >= 2 ? `<div class="banner">Live tip you got most: <b>${esc(t[0])}</b></div>` : ''; })()}
       ${r.pace ? `<div class="banner">${r.pace === 'fast' ? 'You were reciting quickly. Slow down so every letter lands.' : 'Your pace was very slow. Try a smoother, steadier flow.'}</div>` : ''}
       ${r.extras >= 3 && r.extras / r.hn > .08 ? `<div class="banner">Some extra words were heard (repeats or additions). Recite only what is written.</div>` : ''}

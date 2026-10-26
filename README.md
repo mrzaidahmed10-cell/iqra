@@ -83,3 +83,8 @@ Speech-to-text hears words, not harakat. It can reliably catch skipped, swapped 
 - Suspensions: timed or permanent, clear in-app message, removed accounts are signed out.
 - Community: photos (dev portal upload), likes, comments, per-post comment lock.
 - Prayer tab: location times, signed daily checklist, streak, week view, Athan (plays while the app is open; set a custom audio link in Prayer settings).
+
+## v8
+- App bar with Nur on every page, new type scale and card styles, press feedback, undo toasts, offline banner.
+- Forgiving surah search (js/search.js): no "Al-" or dashes needed, spelling variants, typos, keywords, Arabic.
+- Coach memory: missed words are kept in S.weak, sent to the coach as history, shown as "words to revisit" with practice.

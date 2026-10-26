@@ -107,7 +107,7 @@ async function startPage() {
   root.onclick = e => {
     const c = e.target.closest('[data-chk]'), b = e.target.closest('[data-bell]'); if (b) { const k = b.dataset.bell, a = P().athan; a[k] = a[k] === false; save(); feel('tick', 'tick'); if (a[k]) askNotify(); render(); return; }
     if (!c || c.disabled) return; const k = c.dataset.chk;
-    if (dayLog()[k]) { delete dayLog()[k]; save(); feel('tap', 'tick'); render(); toast(`${k} unchecked`, 'undo'); return; }
+    if (dayLog()[k]) { const old = dayLog()[k]; delete dayLog()[k]; save(); feel('tap', 'tick'); render(); toast(`${k} unchecked`, 'undo', () => { dayLog()[k] = old; save(); render(); }); return; }
     signSheet(k, sig => { markPrayed(k, sig); closeSheet(); render(); });
   };
 }

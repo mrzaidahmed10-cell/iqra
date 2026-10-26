@@ -33,7 +33,7 @@ export const defaultState = () => ({
   updatedAt: 0, profile: null, track: 'foundations',
   settings: { autoNext: true, repeat: 'off', translation: true, translit: false, fontSize: 30, reciter: 'ar.alafasy', sound: true, haptics: true, openAll: false, theme: 'lapis', avatar: 'moon', mode: 'auto', rate: 1, leniency: 'balanced' },
   xp: 0, coins: 0, streak: 0, bestStreak: 0, lastActive: '', daily: {}, surahs: {}, badges: {}, lessons: {}, session: null, recites: [], nur: [],
-  owned: { themes: ['lapis'], avatars: ['moon'] }, fasts: {}, prayer: { log: {}, athan: {}, paid: {}, method: 2, school: 0, url: '' }, dhikr: { total: 0, idx: 0, count: 0 },
+  owned: { themes: ['lapis'], avatars: ['moon'] }, fasts: {}, weak: {}, cleared: 0, prayer: { log: {}, athan: {}, paid: {}, method: 2, school: 0, url: '' }, dhikr: { total: 0, idx: 0, count: 0 },
   favs: [], listen: { last: null, recents: [], favs: [] }, sessions: 0, perfects: 0, gamesPlayed: 0,
 });
 export const S = {};
@@ -168,11 +168,13 @@ export function reward({ xp = 0, coins = 0, streak = true } = {}) {
 
 // ---------- UI helpers ----------
 import { ic } from './icons.js';
-export function toast(msg, icon = 'sparkle') {
+export function toast(msg, icon = 'sparkle', undo) {
   let w = $('#toasts'); if (!w) { w = document.createElement('div'); w.id = 'toasts'; document.body.appendChild(w); }
-  const el = document.createElement('div'); el.className = 'toast'; el.innerHTML = `<span class="t-ic">${ic(icon, 18)}</span><b>${esc(msg)}</b>`; w.appendChild(el);
-  requestAnimationFrame(() => el.classList.add('in'));
-  setTimeout(() => el.classList.add('out'), 2600); setTimeout(() => el.remove(), 3100);
+  const el = document.createElement('div'); el.className = 'toast'; el.setAttribute('role', 'status'); el.innerHTML = `<span class="t-ic">${ic(icon, 18)}</span><b>${esc(msg)}</b>${undo ? '<button class="t-undo" type="button">Undo</button>' : ''}`; w.appendChild(el);
+  requestAnimationFrame(() => el.classList.add('in')); const life = undo ? 5200 : 2600; let done = false;
+  const bye = () => { el.classList.add('out'); setTimeout(() => el.remove(), 500); };
+  if (undo) { const bt = el.querySelector('.t-undo'); bt.onclick = () => { if (done) return; done = true; try { undo(); } catch { /* ignore */ } bye(); }; }
+  setTimeout(bye, life);
 }
 /** A calm expanding ring, used for level-ups instead of confetti. */
 export function burst() {

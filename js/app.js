@@ -8,11 +8,12 @@ import { ic } from './icons.js';
 import { LEVELS, TRACKS, FOUNDATION_SURAHS, RECITERS } from './content.js';
 import { UNITS, lessonMeta } from './curriculum.js';
 import { startLesson, startSurah, startReview, resumeSession, hasSession, sessionInfo } from './lesson.js';
-import { openRecite, gradeOf } from './recite.js';
+import { openRecite, gradeOf, weakList, weakCount } from './recite.js';
 import * as HL from './halal.js';
 import * as EX from './extras.js';
 import { viewPrayerTab, startAthan } from './prayer.js';
 import { openNur } from './nur.js';
+import { searchSurahs } from './search.js';
 import { openArcade } from './games.js';
 import { back, ring, val, title, getErr, timers, clearTimers, refresh, lrow } from './ui.js';
 import * as P from './pages.js';
@@ -76,9 +77,9 @@ const NAV = [['home', 'Home', 'home'], ['quran', 'Quran', 'book'], ['prayer', 'P
 
 async function boot() {
   document.body.classList.remove('authing'); applyTheme();
-  app.innerHTML = `<main id="view" class="view"></main><div id="mini" class="mini" hidden></div>
+  app.innerHTML = `<header class="appbar" id="appbar"><div class="ab-l"></div><div class="ab-t" aria-hidden="true"></div><button class="ab-nur" data-act="nur" aria-label="Ask Nur">${ic('sparkle', 20)}</button></header><div id="offline" class="offline" hidden role="status">You're offline. Reading and saved lessons still work.</div><main id="view" class="view"></main><div id="mini" class="mini" hidden></div>
     <nav class="nav" aria-label="Main"><span class="nav-glass"></span><span class="nav-pill"></span>${NAV.map(n => `<a href="#/${n[0]}" data-tab="${n[0]}"><span class="ni">${ic(n[2], 20)}</span><span class="nl">${n[1]}</span></a>`).join('')}</nav>`;
-  initNav(); renderMini();
+  initNav(); renderMini(); const off = () => { const o = $('#offline'); if (o) o.hidden = navigator.onLine; }; window.addEventListener('online', off); window.addEventListener('offline', off); off();
   try { surahList = await getSurahList(); } catch { surahList = []; }
   window.__surahList = surahList;
   startAthan(); EX.loadBanner().then(() => { if ($('#view') && /^#\/(home)?$/.test(location.hash || '#/')) route(true); }); EX.refreshCommunity();
@@ -158,6 +159,28 @@ document.addEventListener('click', e => {
 });
 bus.addEventListener('audio', e => { $$('.ayah.playing').forEach(x => x.classList.remove('playing')); if (e.detail) $$(`.ayah[data-g="${e.detail}"]`).forEach(x => { x.classList.add('playing'); x.scrollIntoView({ block: 'center', behavior: 'smooth' }); }); });
 
+// ---------- app bar: back link or wordmark on the left, Nur on the right, page title fades in on scroll
+function fillBar(view, a) {
+  const bar = $('#appbar'); if (!bar) return; const L = $('.ab-l', bar), bk = view.querySelector('.back');
+  L.replaceChildren(); if (bk) L.append(bk); else L.innerHTML = `<a class="wordmark" href="#/home" aria-label="Iqra home"><span class="wm-dot"></span>Iqra</a>`;
+  const t = view.querySelector('h1,h2'); $('.ab-t', bar).textContent = t && !/^Assalamu/.test(t.textContent) ? t.textContent : ''; bar.classList.toggle('scrolled', window.scrollY > 40); bar.dataset.v = a;
+}
+window.addEventListener('scroll', () => { const b = $('#appbar'); if (b) b.classList.toggle('scrolled', window.scrollY > 40); }, { passive: true });
+function nurHere() {
+  const a = (location.hash.slice(2) || 'home').split('/')[0], h = location.hash.slice(2).split('/');
+  const C = {
+    home: ['Planning my learning', ['What should I learn next?', 'Quiz me on what I know', 'How do I build a daily habit?']],
+    path: ['Looking at my learning path', ['Why this order?', 'Can I skip ahead?', 'What should I review?']],
+    quran: ['Browsing the Quran list', ['Which surah should I memorize first?', 'What are the shortest surahs?', 'Help me make a plan']],
+    listen: ['In the listening section', ['Which reciter is best for learning?', 'How do I memorize by listening?']],
+    prayer: ['On the prayer page', ['How do I pray Fajr step by step?', 'What do I say in the sitting?', 'Which method should I choose?']],
+    progress: ['Looking at my progress', ['How am I doing?', 'What should I focus on this week?']],
+    more: ['In the More menu', ['What can Iqra do?', 'How does grading work?']],
+    surah: ['Reading a surah', ['Give me an overview of this surah', 'Tajweed tips for this surah', 'How do I memorize it?']],
+  }[a] || ['', []];
+  let extra = C[0] + (weakCount() ? '. Words the student keeps missing: ' + weakSummary() : ''); if (a === 'surah' && h[1]) { const s = surahList[+h[1] - 1]; if (s) extra = `Looking at Surah ${s.en} (${s.count} ayahs)` + (weakCount() ? '. Words the student keeps missing: ' + weakSummary() : ''); }
+  openNur({ extra, sug: C[1] });
+}
 // ---------- router
 const VIEWS = {
   home: viewHome, path: viewPath, quran: viewQuran, listen: viewListen, surah: viewSurah, progress: viewProgress, more: viewMore,
@@ -174,7 +197,7 @@ async function route(keep = false) {
   try {
     const out = await fn(b); if (tok !== rtok) return;
     view.classList.remove('enter'); view.innerHTML = (['home', 'path', 'quran', 'listen', 'progress', 'more'].includes(a) ? EX.bannerHTML() : '') + out.html; if (!keep) { void view.offsetWidth; view.classList.add('enter'); } out.after && out.after();
-    window.scrollTo(0, keep ? y : 0);
+    window.scrollTo(0, keep ? y : 0); fillBar(view, a);
   } catch (e) { if (tok === rtok) view.innerHTML = `<div class="card center"><h3>Couldn't load</h3><p class="muted">${getErr(e)}</p><p class="muted small">Check your connection, then retry.</p><button class="btn primary" data-act="retry">Retry</button></div>`; }
 }
 window.addEventListener('hashchange', () => { closeSheet(); route(); });
@@ -184,6 +207,8 @@ window.addEventListener('iqra-next', () => ACT['start-next']());
 // =====================================================================
 // Home
 // =====================================================================
+const weakCard = () => { const n = weakCount(); return n ? `<button class="card lrow plain weak-card" data-act="weak"><span class="ico">${ic('target', 20)}</span><div class="grow"><b>${n} word${n > 1 ? 's' : ''} to revisit</b><small class="muted">Your coach remembers what tripped you up</small></div>${ic('chevR', 18, 'dim')}</button>` : ''; };
+const weakSummary = () => weakList().sort((a, b) => b.c - a.c).slice(0, 8).map(w => `${w.w} (Surah ${(surahList[w.n - 1] || {}).en || w.n}, ayah ${w.a})`).join('; ');
 const ARCH = 'M24 196V96C24 56 60 34 80 6C100 34 136 56 136 96V196';
 const stIcon = s => ({ mastered: ic('award', 18), learned: ic('check', 18), learning: ic('circle', 18) }[s] || '');
 function archHTML(p) {
@@ -199,17 +224,20 @@ function upNext() {
   const s = surahList[it.n - 1], r = S.surahs[it.n], l = r ? r.learned.length : 0;
   return `<section class="card up"><div class="up-h"><span class="ico big">${ic('book', 24)}</span><div><small class="muted">${l ? 'Continue learning' : 'Up next'}</small><h3>${esc(s.en)}</h3><p class="muted">${esc(s.tr)} · ${s.count} ayahs</p></div><span class="ar up-ar">${esc(s.ar)}</span></div><div class="progress"><i style="width:${Math.round(l / s.count * 100)}%"></i></div><div class="row-gap"><button class="btn primary grow big" data-act="learn" data-n="${s.n}">${l ? 'Continue' : 'Start learning'}</button><a class="btn" href="#/surah/${s.n}">Open</a></div></section>`;
 }
+const nudge = () => { const n = streakNow(), d = day(); if (n > 0 && dayMinutes(d) < 1 && new Date().getHours() >= 17) return `<p class="nudge">${ic('flame', 16)}<span>Your ${n}-day streak ends tonight. A 5-minute lesson keeps it.</span></p>`; return ''; };
 async function viewHome() {
   if (!surahList.length) { try { surahList = await getSurahList(); window.__surahList = surahList; } catch { /* offline */ } }
   const p = S.profile || {}, lv = levelOf(S.xp), lo = xpFor(lv), hi = xpFor(lv + 1), d = day(), goalS = (p.goalMin || 10) * 60, hj = hijri();
   const prog = Math.min(1, d.secs / goalS), ses = sessionInfo(), due = dueReviews().length, tr = TRACKS[S.track];
   return {
     html: `<header class="top"><div class="who"><span class="avatar">${ic(S.settings.avatar, 22)}</span><div><small class="muted">${hj ? esc(hj.text) : ''}</small><h1>Assalamu alaykum, ${esc(p.name || 'friend')}</h1></div></div><div class="chips"><span class="chip">${ic('flame', 14)} ${streakNow()}</span><span class="chip gold">${ic('coin', 14)} ${S.coins}</span></div></header>
+    ${nudge()}
     <section class="hero"><div class="hero-l"><small class="muted">Level ${lv} · ${title(lv)}</small><h2 class="mins">${dayMinutes(d)}<span> of ${p.goalMin || 10} min today</span></h2><div class="xpbar"><i style="width:${Math.round((S.xp - lo) / (hi - lo) * 100)}%"></i></div><small class="muted">${S.xp - lo} / ${hi - lo} XP to level ${lv + 1}</small><button class="trk" data-act="level">${ic(tr.icon, 16)}<span>${tr.n} plan</span>${ic('chevR', 14)}</button></div>${archHTML(prog)}</section>
     ${EX.prayerWidget()}
     ${ses ? `<section class="card resume"><div class="up-h"><span class="ico big">${ic('play', 22)}</span><div><small class="muted">Pick up where you left off</small><h3>${esc(ses.title)}</h3><p class="muted">${esc(ses.sub || '')} · ${ses.pct}% done</p></div></div><div class="progress"><i style="width:${ses.pct}%"></i></div><button class="btn primary big" data-act="resume">Resume</button></section>` : ''}
     ${!p.placement && !p.placementLater ? `<section class="card up plc-nudge"><div class="up-h"><span class="ico big">${ic('compass', 22)}</span><div><small class="muted">Recommended</small><h3>Find your level</h3><p class="muted">A 5 minute quiz tunes your lessons and how strict your recitation coach is.</p></div></div><div class="row-gap"><button class="btn primary grow" data-act="placement">Take the quiz</button><button class="btn ghost" data-act="plc-later">Not now</button></div></section>` : ''}
     ${upNext()}
+    ${weakCard()}
     ${due >= 4 ? `<section class="card up"><div class="up-h"><span class="ico big">${ic('repeat', 22)}</span><div><small class="muted">Revision</small><h3>${due} ayahs ready to refresh</h3><p class="muted">A quick session keeps them from fading.</p></div></div><button class="btn big" data-act="review">Revise now</button></section>` : ''}
     <section class="tiles"><button class="tile" data-act="recite-pick"><span class="ico">${ic('mic', 22)}</span><b>Recite</b><small>Get graded</small></button><button class="tile" data-act="nur"><span class="ico">${ic('message', 22)}</span><b>Ask Nur</b><small>Your coach</small></button><button class="tile" data-act="arcade"><span class="ico">${ic('dice', 22)}</span><b>Games</b><small>Calm break</small></button><a class="tile" href="#/more/halal"><span class="ico">${ic('scan', 22)}</span><b>Halal</b><small>Scan food</small></a></section>
     <section class="card"><div class="row-between"><h3>Today's tasks</h3><small class="muted">resets at midnight</small></div>${questsNow().map(q => { const v = Math.min(q.g, d[q.k] || 0); return `<div class="quest ${v >= q.g ? 'done' : ''}"><span class="qi">${ic(v >= q.g ? 'check' : 'target', 16)}</span><div class="grow"><b>${q.t}</b><div class="progress thin"><i style="width:${v / q.g * 100}%"></i></div></div><small>${ic('coin', 12)} ${q.c}</small></div>`; }).join('')}</section>
@@ -251,18 +279,18 @@ function surahRow(s) {
   return `<a class="srow ${st} ${lock ? 'locked' : ''}" href="#/surah/${s.n}"><span class="snum"><b>${s.n}</b></span><div class="sinfo"><b>${esc(s.en)}</b><small>${esc(s.tr)} · ${s.count} ayahs · ${esc(s.type)}</small>${st === 'learning' ? `<div class="progress thin"><i style="width:${pc}%"></i></div>` : ''}</div><div class="sright"><span class="ar sname">${esc(s.ar)}</span>${lock ? `<small class="lockt">${ic('lock', 12)} Lv ${reqLevel(s.count)}</small>` : `<i class="stat">${stIcon(st)}</i>`}</div></a>`;
 }
 function filteredSurahs() {
-  let l = surahList; const q = qSearch.toLowerCase().trim();
+  let l = surahList; const q = qSearch.trim();
   if (qFilter === 'path') { const ns = planItems().filter(i => i.k === 'surah').map(i => i.n); l = ns.map(n => surahList[n - 1]).filter(Boolean); } else if (qFilter !== 'all') l = l.filter(s => statusOf(s.n) === qFilter);
-  if (q) l = l.filter(s => s.en.toLowerCase().includes(q) || s.tr.toLowerCase().includes(q) || String(s.n) === q || s.ar.includes(q));
+  if (q) l = searchSurahs(l, q);
   return l;
 }
 const listHTML = () => filteredSurahs().map(surahRow).join('') || '<p class="muted center">Nothing here yet.</p>';
 const rlSeg = on => `<div class="seg rdls"><a class="${on === 'read' ? 'on' : ''}" href="#/quran">${ic('book', 16)} Read</a><a class="${on === 'listen' ? 'on' : ''}" href="#/listen">${ic('headphones', 16)} Listen</a></div>`;
 const recName = id => (RECITERS.find(r => r.id === id) || RECITERS[0]).n;
 function listenRows() {
-  const L = listenState(), q = lSearch.toLowerCase().trim(); let l = surahList;
+  const L = listenState(), q = lSearch.trim(); let l = surahList;
   if (lFilter === 'short') l = l.filter(x => x.count <= 25); else if (lFilter === 'meccan') l = l.filter(x => /mecc/i.test(x.type)); else if (lFilter === 'medinan') l = l.filter(x => /medin/i.test(x.type)); else if (lFilter === 'favs') l = l.filter(x => L.favs.includes(x.n));
-  if (q) l = l.filter(x => x.en.toLowerCase().includes(q) || x.tr.toLowerCase().includes(q) || String(x.n) === q || x.ar.includes(q));
+  if (q) l = searchSurahs(l, q);
   const cur = Player.q[Player.i], now = cur && cur.n;
   return l.map(x => `<div class="lrow2 ${now === x.n ? 'now' : ''}"><a class="lr-info" href="#/surah/${x.n}"><span class="num">${x.n}</span><div class="grow"><b>${esc(x.en)}</b><small class="muted">${esc(x.tr)} · ${x.count} ayahs</small></div><span class="ar lr-ar">${esc(x.ar)}</span></a><button class="icon-btn sm fav ${L.favs.includes(x.n) ? 'on' : ''}" data-act="listen-fav" data-n="${x.n}" aria-label="Favorite">${ic('heart', 18)}</button><button class="icon-btn play" data-act="listen-play" data-n="${x.n}" aria-label="Play ${esc(x.en)}">${ic(now === x.n && Player.playing ? 'pause' : 'play', 18)}</button></div>`).join('') || '<p class="muted center">Nothing here yet.</p>';
 }
@@ -326,7 +354,8 @@ async function viewProgress() {
     html: `<header class="top"><h1>Progress</h1><span class="chip">Lv ${lv} · ${title(lv)}</span></header>
     <section class="stats4"><div class="card stat"><b>${S.xp}</b><small>total XP</small></div><div class="card stat"><b>${streakNow()}</b><small>day streak</small></div><div class="card stat"><b>${lt}</b><small>ayahs learned</small></div><div class="card stat"><b>${lessonsDone}</b><small>lessons done</small></div></section>
     <section class="card"><div class="row-between"><h3>This week</h3><div class="seg sm">${M.map(m => `<button class="${chartMetric === m[0] ? 'on' : ''}" data-act="metric" data-m="${m[0]}">${m[1]}</button>`).join('')}</div></div>${barChart(vals, days.map(d => d.l))}</section>
-    <section class="card rings"><div>${ring(lt / TOTAL_AYAHS, 104, (lt / TOTAL_AYAHS * 100).toFixed(1) + '%', 'of the Quran')}</div><div>${ring(doneN / 114, 104, doneN + '/114', 'learned')}</div><div>${ring(mt / 114, 104, mt + '/114', 'mastered')}</div></section>
+    <section class="card rings"><div>${ring(lt / TOTAL_AYAHS, 88, (lt / TOTAL_AYAHS * 100).toFixed(1) + '%', 'of the Quran')}</div><div>${ring(doneN / 114, 88, doneN + '/114', 'learned')}</div><div>${ring(mt / 114, 88, mt + '/114', 'mastered')}</div></section>
+    ${weakCard()}
     <section class="card"><h3>Recitations</h3>${S.recites.length ? S.recites.slice(0, 6).map(r => { const g = gradeOf(r.score); return `<div class="mrow"><span class="ico">${ic('mic', 18)}</span><div class="grow"><b>${esc(r.name)} · ${r.from}${r.to > r.from ? '–' + r.to : ''}</b><small class="muted">${new Date(r.at).toLocaleDateString()} · ${g[0]}${r.mastery ? ' · mastery attempt' : ''}</small></div><b class="${g[1] === 'good' ? 'ok-t' : ''}">${r.score}%</b></div>`; }).join('') : '<p class="muted">Recite any surah to see your graded history here.</p>'}</section>
     <section class="card"><h3>All 114 surahs</h3><div class="legend"><span><i class="c new"></i>new</span><span><i class="c learning"></i>learning</span><span><i class="c learned"></i>learned</span><span><i class="c mastered"></i>mastered</span></div><div class="grid114">${surahList.map(s => `<a class="cell ${statusOf(s.n)}" href="#/surah/${s.n}" title="${esc(s.en)}">${s.n}</a>`).join('')}</div></section>
     <section class="card"><h3>Mastery</h3>${mastered.length ? mastered.map(s => `<a class="mrow" href="#/surah/${s.n}"><span class="ico">${ic('award', 18)}</span><div class="grow"><b>${esc(s.en)}</b><small class="muted">${new Date(S.surahs[s.n].masteredAt || Date.now()).toLocaleDateString()}</small></div><b class="ok-t">${S.surahs[s.n].best || 100}%</b></a>`).join('') : '<p class="muted">No surah mastered yet. Learn one, then recite it with no real mistakes.</p>'}</section>
@@ -359,7 +388,14 @@ const ACT = {
   retry: () => route(),
   'close-sheet': () => closeSheet(),
   arcade: () => openArcade(),
-  nur: () => openNur(),
+  nur: () => nurHere(),
+  weak: () => {
+    const by = {}; weakList().sort((a, b) => b.c - a.c).forEach(w => (by[w.n] = by[w.n] || []).push(w));
+    const el = sheet(`<h3>Words to revisit</h3><p class="muted">Get a word right twice in a row and it leaves this list.${S.cleared ? ` You have cleared ${S.cleared} so far.` : ''}</p><div class="weak-list">${Object.entries(by).map(([n, ws]) => `<div class="weak-g"><small class="sec2">${esc((surahList[n - 1] || {}).en || 'Surah ' + n)}</small>${ws.slice(0, 12).map(w => `<div class="weak-r"><span class="ar">${esc(w.w)}</span><div class="grow"><b>Ayah ${w.a}</b><small class="muted">Missed ${w.c}×${w.issue ? ' · ' + esc(w.issue) : ''}</small></div><button class="btn sm" data-act="weak-drill" data-n="${n}" data-a="${w.a}">Practice</button></div>`).join('')}</div>`).join('')}</div><button class="btn primary wide" data-act="weak-nur">${ic('sparkle', 18)} Ask Nur for tips</button>`, 'weak-sheet');
+    void el;
+  },
+  'weak-drill': async t => { const n = +t.dataset.n, a = +t.dataset.a; try { const ays = await getSurah(n), s = surahList[n - 1]; closeSheet(); setTimeout(() => openRecite(s, ays, { from: Math.max(1, a), to: a }), 220); } catch { toast('Could not load that surah. Check your connection.', 'info'); } },
+  'weak-nur': () => { closeSheet(); setTimeout(() => openNur({ ask: 'Give me practical tips for the words I keep missing.', extra: 'Words the student keeps missing: ' + weakSummary() }), 220); },
   'nur-surah': t => { const s = surahList[+t.dataset.n - 1]; openNur({ ask: `Give me a short overview of Surah ${s.en}: its theme and one tip for learning it.`, extra: `Looking at Surah ${s.en} (${s.count} ayahs)` }); },
   filter: t => { qFilter = t.dataset.f; refresh(); },
   metric: t => { chartMetric = t.dataset.m; refresh(); },

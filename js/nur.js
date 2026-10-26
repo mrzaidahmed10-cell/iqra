@@ -17,7 +17,7 @@ export function md(t) {
   return out + (list ? '</ul>' : '');
 }
 
-export function openNur({ ask: first, extra } = {}) {
+export function openNur({ ask: first, extra, sug: ctxSug } = {}) {
   if ($('.nur')) { $('.nur').remove(); }
   document.body.classList.add('noscroll', 'studying');
   const ov = document.createElement('div'); ov.className = 'nur'; ov.setAttribute('role', 'dialog'); ov.setAttribute('aria-label', 'Chat with Nur');
@@ -31,10 +31,11 @@ export function openNur({ ask: first, extra } = {}) {
   const DISC = "I'm an AI and can make mistakes. For rulings that matter to you, ask a qualified scholar.";
   const bubble = m => `<div class="msg ${m.r}"><div class="bub">${m.r === 'ai' ? md(m.t) : esc(m.t).replace(/\n/g, '<br>')}${m.d ? `<small class="disc">${DISC}</small>` : ''}</div></div>`;
   const scroll = () => list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
+  const paintSug = () => { const more = ['Explain simpler', 'Give me an example', 'Quiz me on this']; sug.innerHTML = more.map(s => `<button type="button" data-s="${esc(s)}">${esc(s)}</button>`).join(''); };
   function paint() {
     const hello = `Assalamu alaykum${S.profile && S.profile.name ? ', ' + esc(S.profile.name) : ''}. I'm Nur. Ask me about letters, tajweed, a surah you're learning, or any Islamic question.`;
     list.innerHTML = (S.nur.length ? '' : `<div class="msg ai"><div class="bub"><p>${hello}</p></div></div>`) + S.nur.map(bubble).join('');
-    sug.innerHTML = S.nur.length ? '' : SUGGEST.map(s => `<button type="button" data-s="${esc(s)}">${esc(s)}</button>`).join('');
+    const pool = (ctxSug && ctxSug.length ? ctxSug : SUGGEST), more = S.nur.length ? ['Explain simpler', 'Give me an example', 'Quiz me on this'] : pool; sug.innerHTML = more.map(s => `<button type="button" data-s="${esc(s)}">${esc(s)}</button>`).join('');
     list.scrollTop = list.scrollHeight;
   }
   const context = () => ({
@@ -43,7 +44,7 @@ export function openNur({ ask: first, extra } = {}) {
   });
   async function send(text) {
     text = (text || '').trim(); if (!text || busy) return;
-    busy = true; ta.value = ''; fit(); sug.innerHTML = '';
+    busy = true; ta.value = ''; fit(); sug.classList.add('off');
     S.nur.push({ r: 'user', t: text, at: Date.now() }); list.insertAdjacentHTML('beforeend', bubble({ r: 'user', t: text }));
     list.insertAdjacentHTML('beforeend', `<div class="msg ai" id="typing"><div class="bub typing"><i></i><i></i><i></i></div></div>`); scroll(); feel('tick');
     let reply, disc = false;
@@ -54,7 +55,7 @@ export function openNur({ ask: first, extra } = {}) {
     } catch (e) { reply = e.message || 'I could not reach the server. Try again in a moment.'; }
     $('#typing', ov)?.remove();
     S.nur.push({ r: 'ai', t: reply, d: disc, at: Date.now() }); S.nur = S.nur.slice(-40); save();
-    list.insertAdjacentHTML('beforeend', bubble({ r: 'ai', t: reply, d: disc })); scroll(); feel('ok'); busy = false;
+    list.insertAdjacentHTML('beforeend', bubble({ r: 'ai', t: reply, d: disc })); scroll(); feel('ok'); busy = false; sug.classList.remove('off'); paintSug();
   }
   const fit = () => { ta.style.height = 'auto'; ta.style.height = Math.min(120, ta.scrollHeight) + 'px'; };
   ta.addEventListener('input', fit);
@@ -66,6 +67,7 @@ export function openNur({ ask: first, extra } = {}) {
     if (k === 'close') { ov.classList.remove('in'); setTimeout(() => ov.remove(), 280); if (!$('.lesson')) document.body.classList.remove('studying'); if (!$('.lesson,.game,.recite')) document.body.classList.remove('noscroll'); }
     else if (k === 'clear') { if (await ask({ title: 'Clear this conversation?', ok: 'Clear', danger: true })) { S.nur = []; save(); paint(); } }
   });
+  const vv = window.visualViewport; const fitVV = () => { if (vv) ov.style.height = vv.height + 'px'; }; if (vv) { vv.addEventListener('resize', fitVV); fitVV(); ov.addEventListener('remove', () => vv.removeEventListener('resize', fitVV)); }
   paint(); if (first) setTimeout(() => send(first), 350);
   void sheet; void closeSheet; void toast;
 }
