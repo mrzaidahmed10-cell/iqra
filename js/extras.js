@@ -5,11 +5,11 @@ import { back, timers } from './ui.js';
 import { lsGet, timingsFor, nextOf, fmt, left } from './prayer.js';
 
 const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* storage unavailable */ } };
-export const prayerWidget = () => `<a class="card pw" id="pw" href="#/prayer"><span class="ico">${ic('dome', 20)}</span><div class="grow"><small class="muted">Next prayer</small><b id="pw-n">Set up prayer times</b></div><div class="pw-r"><b id="pw-t"></b><small class="muted" id="pw-l"></small></div></a>`;
+export const prayerWidget = () => `<a class="hrow" id="pw" href="#/prayer"><span class="ico">${ic('dome', 20)}</span><div class="grow"><b id="pw-n">Set up prayer times</b><small class="muted" id="pw-l">Tap to start</small></div><b class="hrow-v" id="pw-t"></b>${ic('chevR', 16, 'dim')}</a>`;
 export async function startPrayerWidget() {
-  const loc = lsGet('iqra_loc', null), box = $('#pw'); if (!box) return; if (!loc) { $('#pw-l').textContent = 'Tap to start'; return; }
+  const loc = lsGet('iqra_loc', null), box = $('#pw'); if (!box) return; if (!loc) return;
   let t = null; try { t = await timingsFor(loc); } catch { $('#pw-n').textContent = 'Prayer times'; $('#pw-l').textContent = 'Offline'; return; }
-  const draw = () => { if (!$('#pw')) return; const [k, d] = nextOf(t); $('#pw-n').textContent = k; $('#pw-t').textContent = fmt(d); $('#pw-l').textContent = 'in ' + left(d - new Date()); };
+  const draw = () => { if (!$('#pw')) return; const [k, d] = nextOf(t); $('#pw-n').textContent = k; $('#pw-t').textContent = fmt(d); $('#pw-l').textContent = 'Next prayer · in ' + left(d - new Date()); };
   draw(); timers.push(setInterval(draw, 20000));
 }
 

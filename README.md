@@ -88,3 +88,9 @@ Speech-to-text hears words, not harakat. It can reliably catch skipped, swapped 
 - App bar with Nur on every page, new type scale and card styles, press feedback, undo toasts, offline banner.
 - Forgiving surah search (js/search.js): no "Al-" or dashes needed, spelling variants, typos, keywords, Arabic.
 - Coach memory: missed words are kept in S.weak, sent to the coach as history, shown as "words to revisit" with practice.
+
+## v9 (UI round)
+- Home: one Today card (goal ring, next step as the main button, level bar), a short "for you" list, 4 quick actions, collapsible tasks.
+- Progress: Overview / Surahs / Badges tabs with a compact stat band. More: profile card on top.
+- Surah screen, lesson stage and recitation result simplified (summary card, short insights list, collapsible by-ayah).
+- Fixes: button labels breaking mid-word, calendar overflow at 320px, class collision on the Prayer week row.

@@ -557,7 +557,7 @@ a.card:active,button.card:active{transform:scale(.985);background:var(--card2)}
 .btn:disabled{opacity:.5}
 :focus-visible{outline:2px solid var(--ac);outline-offset:2px}
 /* text always fits its box */
-.btn,.chip,.pill,.seg button,.tile b,.tile small,.pick{overflow-wrap:anywhere}
+.btn,.chip,.pill,.seg button,.tile b,.tile small,.pick{overflow-wrap:break-word}
 .btn{line-height:1.2;padding-block:10px;text-wrap:balance}
 .tile b{display:block;white-space:normal;line-height:1.15}.tile small{display:block;line-height:1.25}
 .card,.sheet,.post,.cm,.msg .bub{overflow-wrap:anywhere}
@@ -580,3 +580,67 @@ input:not([type=checkbox]):not([type=radio]):not([type=range]),textarea,select{f
 .offline{position:fixed;left:12px;right:12px;top:calc(env(safe-area-inset-top) + var(--bar) + 4px);z-index:35;padding:8px 14px;border-radius:14px;background:color-mix(in srgb,var(--warn) 18%,var(--card));border:1px solid color-mix(in srgb,var(--warn) 40%,transparent);font-size:.85rem;font-weight:600;text-align:center}.offline[hidden]{display:none}
 .nudge{display:flex;align-items:center;gap:8px;margin:0;padding:10px 14px;border-radius:14px;background:var(--gold-soft);color:var(--ink);font-size:.9rem;font-weight:550}.nudge .ic{color:var(--gold);flex:none}
 #hl-ing{font-size:16px}.cal-h,.cal{gap:2px}.day{border-radius:10px}
+
+/* ======================= v9: calmer Home ======================= */
+.ab-r{margin-inline-start:auto;display:flex;gap:6px;align-items:center}.ab-r+.ab-nur{margin-inline-start:0}
+.ab-r .chip{min-height:30px;padding:0 10px;font-size:.82rem}
+.hhead{display:grid;gap:2px;margin-top:2px}.hhead h1{font-size:1.35rem;font-weight:700;letter-spacing:-.03em;line-height:1.15}.hhead small{font-size:.8rem}
+.tcard{position:relative;display:grid;grid-template-columns:64px minmax(0,1fr) auto;column-gap:14px;row-gap:14px;align-items:center;padding:18px;background:linear-gradient(160deg,color-mix(in srgb,var(--ac) 12%,var(--card)),var(--card) 62%);overflow:hidden}
+.tcard::after{content:'';position:absolute;inset:0;background:var(--star);opacity:.7;pointer-events:none;-webkit-mask:linear-gradient(120deg,transparent 35%,#000);mask:linear-gradient(120deg,transparent 35%,#000)}
+.tcard>*{position:relative;z-index:1}
+.gring2{position:relative;width:64px;height:64px;display:grid;place-items:center;align-content:center}.gring2 svg{position:absolute;inset:0;width:100%;height:100%}
+.g-t{fill:none;stroke:var(--card2);stroke-width:4}.g-p{fill:none;stroke:var(--gold);stroke-width:4;stroke-linecap:round;transition:stroke-dashoffset 1s var(--ease)}
+.gring2 b{font:700 1.2rem/1 'Bricolage Grotesque',system-ui}.gring2 small{font-size:.62rem;color:var(--mute);line-height:1.1;margin-top:1px}
+.today-t{min-width:0}.today-t .kick{display:block;font-size:.72rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--ac)}
+.today-t h2{font-size:1.2rem;font-weight:700;letter-spacing:-.02em;line-height:1.2;margin:2px 0}.today-t p{margin:0;font-size:.88rem}
+.today-ar{font-size:1.6rem;line-height:1.3;color:var(--gold);white-space:nowrap;align-self:start}
+.tcard>.btn{grid-column:1/-1}.tcard .btn.big{min-height:52px;font-size:1.02rem}
+.lvl{grid-column:1/-1;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:4px 10px;text-align:start;margin:-2px -4px -6px;padding:8px 4px;border-radius:12px;font-size:.8rem;color:var(--mute);transition:background .15s}.lvl:active{background:var(--card2)}
+.lvl .lv-n{font-weight:700;color:var(--ink)}.lv-bar{height:6px;border-radius:99px;background:var(--card2);overflow:hidden}.lv-bar i{display:block;height:100%;border-radius:inherit;background:var(--gold)}.lv-x{font-variant-numeric:tabular-nums}
+.lv-p{grid-column:1/-1;display:flex;align-items:center;gap:6px;color:var(--mute)}
+.hrow-list{padding:4px 6px}.hrow{display:flex;align-items:center;gap:12px;width:100%;min-height:60px;padding:8px 8px;border-radius:16px;text-align:start;transition:background .15s}
+.hrow+.hrow{position:relative}.hrow+.hrow::before{content:'';position:absolute;top:0;left:60px;right:8px;border-top:1px solid var(--line)}.hrow:active{background:var(--card2)}
+.hrow .ico{width:40px;height:40px}.hrow b{display:block;font-weight:650}.hrow small{display:block;font-size:.8rem;line-height:1.3}.hrow-v{font-variant-numeric:tabular-nums;white-space:nowrap}
+.qa{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.qa>*{display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 4px 10px;min-height:76px;border-radius:var(--r-md);background:var(--card);border:1px solid var(--line);box-shadow:var(--sh-card);transition:transform .15s var(--ease),background .15s}
+.qa>*:active{transform:scale(.95);background:var(--card2)}.qa .ico{width:38px;height:38px;border-radius:12px}.qa b{font-size:.8rem;font-weight:600}
+.tasks{padding:0}.tasks summary{display:flex;align-items:center;gap:10px;padding:14px 16px;list-style:none;cursor:pointer;min-height:56px}.tasks summary::-webkit-details-marker{display:none}.tasks summary h3{margin:0}
+.tasks summary>.ic{transition:transform .25s var(--ease)}.tasks[open] summary>.ic{transform:rotate(180deg)}.tasks>:not(summary){margin-inline:16px}.tasks>small{display:block;margin:4px 16px 14px}
+.seg-dots{display:flex;gap:4px;margin-top:6px}.seg-dots i{width:22px;height:4px;border-radius:99px;background:var(--card2)}.seg-dots i.on{background:var(--gold)}
+.daily{padding:16px}
+.nudge{padding:9px 12px;font-size:.86rem}
+
+/* ======================= v9: Progress ======================= */
+.statband{display:grid;grid-template-columns:repeat(3,1fr);padding:16px 8px}.st{text-align:center;padding:0 4px}.st+.st{border-inline-start:1px solid var(--line)}
+.st b{display:block;font:700 1.7rem/1.1 'Bricolage Grotesque',system-ui;letter-spacing:-.03em}.st:first-child b{color:var(--good)}.st:nth-child(2) b{color:var(--gold)}.st small{color:var(--mute);font-size:.78rem}
+.quranbar .progress{margin:12px 0 10px}.qb-row{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;color:var(--mute);font-size:.8rem}.qb-row b{color:var(--ink)}
+.empty-c{margin:18px 0 8px;font-size:.9rem}
+.badges{grid-template-columns:repeat(3,minmax(0,1fr))}
+.profile{display:flex;align-items:center;gap:14px;padding:14px 16px}.profile b{display:block;font-size:1.1rem;font-weight:650}.avatar.big{width:54px;height:54px}
+
+/* ======================= v9: surah screen ======================= */
+.surah-head{padding:20px 16px 16px}.surah-head .big-name{font-size:2.5rem;line-height:1.4}.surah-head h2{font-size:1.5rem}
+.surah-head .row-gap .btn{flex:1 1 0;min-width:0;padding:0 8px;white-space:nowrap}
+.ayah{padding:12px 2px 14px}.ayah-top{gap:6px}.ayah-top .chk{margin-inline-start:auto;display:grid;place-items:center;width:26px;height:26px;border-radius:50%;background:color-mix(in srgb,var(--good) 18%,transparent);color:var(--good)}
+.ayah.learned .num{background:color-mix(in srgb,var(--good) 18%,transparent);color:var(--good)}
+.ayah .icon-btn.sm{color:var(--mute);width:40px;height:40px}
+.bismillah{text-align:center;font-size:1.7rem;line-height:2;color:var(--gold);margin:6px 0}
+.seg.rdls a{padding:8px}.srow{padding-block:9px}
+
+/* ======================= v9: lesson stage ======================= */
+.l-stage{display:flex;flex-direction:column}.l-stage>.card-step,.l-stage>.teach{margin-block:auto;padding-bottom:4vh}
+.card-step{text-align:center}.card-step h2{font-size:1.5rem}
+.card-step .big-ar{background:var(--card);border:1px solid var(--line);border-radius:28px;padding:10px 12px;margin:18px auto;max-width:360px;box-shadow:var(--sh-card)}
+.card-step .lead,.teach .lead{text-align:center;font-size:1rem;line-height:1.55;max-width:34ch;margin-inline:auto;text-wrap:balance}
+.l-bar{height:6px}.l-count{font-variant-numeric:tabular-nums;color:var(--mute);font-size:.8rem}
+.banner{border-radius:14px}
+.l-stage>.card-step,.l-stage>.teach{margin-block:0;padding-top:6vh}
+.card-step .big-ar{line-height:1.5;padding:4px 12px 14px;min-height:150px;display:grid;place-items:center}
+
+/* ======================= v9: recite result ======================= */
+.rsum{display:flex;align-items:center;gap:16px;padding:16px}.rsum .grade{width:104px;height:104px;margin:0;flex:none}.rsum .gt b{font-size:1.7rem}.rsum .gb,.rsum .gf{stroke-width:11}
+.rs-info{min-width:0;display:grid;gap:4px}.rs-title{font:700 1.25rem/1.2 'Bricolage Grotesque',system-ui;letter-spacing:-.02em}.rs-info p{margin:0;font-size:.9rem}.rs-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+.ins{list-style:none;margin:0;display:grid;gap:10px;padding:14px 16px}.ins li{position:relative;padding-inline-start:18px;font-size:.9rem;line-height:1.45}.ins li::before{content:'';position:absolute;left:0;top:.5em;width:7px;height:7px;border-radius:50%;background:var(--gold)}
+.byayah{padding:0}.byayah summary{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;list-style:none;cursor:pointer;min-height:52px}.byayah summary::-webkit-details-marker{display:none}.byayah summary h3{margin:0}.byayah[open] summary>.ic{transform:rotate(180deg)}.byayah .abars{padding:0 16px 14px}
+.ov-body>*+*{margin-top:12px}.ov-body>.legend{margin-top:16px}
+.form>.btn.primary,.card .form+.btn.primary{width:100%}
+.day{min-height:0}
