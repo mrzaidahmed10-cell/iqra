@@ -49,10 +49,10 @@ export function viewSettings() {
   };
 }
 export function viewShop() {
-  const lv = levelOf(S.xp), items = shopTab === 'themes' ? THEMES : AVATARS, own = shopTab === 'themes' ? S.owned.themes : S.owned.avatars, cur = shopTab === 'themes' ? S.settings.theme : S.settings.avatar;
-  const card = it => { const owned = own.includes(it.id), eq = cur === it.id, lock = lv < it.lvl;
-    return `<div class="shopi ${eq ? 'eq' : ''}"><div class="prev">${shopTab === 'themes' ? `<i class="sw-t big" style="--sh:${it.h}"></i>` : ic(it.id, 30)}</div><b>${shopTab === 'themes' ? it.name : ''}</b>${owned ? `<button class="btn small ${eq ? '' : 'primary'}" data-act="equip" data-id="${esc(it.id)}" ${eq ? 'disabled' : ''}>${eq ? 'Equipped' : 'Equip'}</button>` : lock ? `<small class="muted">${ic('lock', 14)} Level ${it.lvl}</small>` : `<button class="btn small gold" data-act="buy" data-id="${esc(it.id)}" ${S.coins < it.cost ? 'disabled' : ''}>${ic('coin', 14)} ${it.cost}</button>`}</div>`; };
-  return { html: `${back()}<header class="top"><h2>Rewards</h2><span class="chip gold">${ic('coin', 14)} ${S.coins}</span></header><p class="muted">Earn coins from lessons, quests and break games. Items unlock as you level up.</p><div class="seg" data-tabs><button class="${shopTab === 'themes' ? 'on' : ''}" data-act="shop-tab" data-t="themes">Accents</button><button class="${shopTab === 'avatars' ? 'on' : ''}" data-act="shop-tab" data-t="avatars">Avatars</button></div><div class="shopgrid">${items.map(card).join('')}</div>` };
+  const items = shopTab === 'themes' ? THEMES : AVATARS, cur = shopTab === 'themes' ? S.settings.theme : S.settings.avatar;
+  const card = it => { const eq = cur === it.id;
+    return `<button class="shopi ${eq ? 'eq' : ''}" data-act="equip" data-id="${esc(it.id)}" aria-pressed="${eq}"><div class="prev">${shopTab === 'themes' ? `<i class="sw-t big" style="--sh:${it.h}"></i>` : ic(it.id, 30)}</div><b>${shopTab === 'themes' ? it.name : ''}</b>${eq ? `<small class="muted">${ic('check', 14)} In use</small>` : ''}</button>`; };
+  return { html: `${back()}<header class="top"><h2>Appearance</h2></header><p class="muted">Pick the accent color and avatar that feel right to you.</p><div class="seg" data-tabs><button class="${shopTab === 'themes' ? 'on' : ''}" data-act="shop-tab" data-t="themes">Accent</button><button class="${shopTab === 'avatars' ? 'on' : ''}" data-act="shop-tab" data-t="avatars">Avatar</button></div><div class="shopgrid">${items.map(card).join('')}</div>` };
 }
 
 // ----- fasting -----

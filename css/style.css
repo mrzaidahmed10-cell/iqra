@@ -644,3 +644,26 @@ input:not([type=checkbox]):not([type=radio]):not([type=range]),textarea,select{f
 .ov-body>*+*{margin-top:12px}.ov-body>.legend{margin-top:16px}
 .form>.btn.primary,.card .form+.btn.primary{width:100%}
 .day{min-height:0}
+
+/* ===== v10: calmer, adult tone. Mihrab hero returns; no coins, XP bars or stars ===== */
+.streak-t{font-size:.82rem;font-weight:600;color:var(--mute);padding-inline:6px;white-space:nowrap}
+.hhead{grid-template-columns:auto minmax(0,1fr);align-items:center;column-gap:12px}
+.hhead .avatar{width:46px;height:46px;border-radius:16px;background:var(--ac-soft);color:var(--ac);display:grid;place-items:center}
+.hhead h1{font-size:1.3rem}
+.hero2{position:relative;padding:20px 18px 18px;border-radius:30px;background:var(--star),linear-gradient(165deg,color-mix(in srgb,var(--ac) 9%,var(--card)),var(--card) 70%);overflow:hidden;display:grid;gap:16px}
+.h2-top{display:grid;grid-template-columns:minmax(0,1fr) 112px;align-items:center;gap:6px}
+.h2-l .kick{display:block;font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ac)}
+.hero2 .mins{font-size:2.9rem;font-weight:700;line-height:1;margin:6px 0 4px;letter-spacing:-.04em}
+.hero2 .mins span{font-size:.95rem;font-weight:500;color:var(--mute);letter-spacing:0}
+.h2-l p{margin:0;font-size:.88rem}
+.hero2 .arch{width:112px;margin:-8px -4px -8px 0}
+.h2-next{display:flex;align-items:center;gap:12px;padding:12px;border-radius:20px;background:color-mix(in srgb,var(--card) 82%,transparent);border:1px solid var(--line)}
+.h2-next .ico{flex:none}.h2-next .grow{min-width:0;display:grid;gap:1px}.h2-next b{font-size:1rem;line-height:1.25;overflow-wrap:break-word}.h2-next small{font-size:.8rem}
+.h2-ar{font-size:1.5rem;color:var(--gold);white-space:nowrap;flex:none}
+.hero2 .row-gap{display:flex;gap:10px}.hero2 .btn.big{min-height:52px}
+.done-ic{width:76px;height:76px;border-radius:50%;margin:0 auto 16px;display:grid;place-items:center;background:var(--card2);color:var(--mute)}
+.done-ic.ok{background:var(--ac-soft);color:var(--ac)}
+.stat-row{grid-template-columns:repeat(3,1fr)}
+button.lrow{width:100%;text-align:start}
+.shopi{text-align:center;cursor:pointer}.shopi.eq{border-color:var(--ac)}
+.badge.got{background:var(--card)}

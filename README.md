@@ -94,3 +94,7 @@ Speech-to-text hears words, not harakat. It can reliably catch skipped, swapped 
 - Progress: Overview / Surahs / Badges tabs with a compact stat band. More: profile card on top.
 - Surah screen, lesson stage and recitation result simplified (summary card, short insights list, collapsible by-ayah).
 - Fixes: button labels breaking mid-word, calendar overflow at 320px, class collision on the Prayer week row.
+
+
+### v10
+Calmer tone: coins, XP bars, level titles, stars and +XP chips are gone from the UI (progress is tracked in minutes, ayahs and lessons; surah unlocks still follow your stage). Badges are now Milestones, Rewards is a free Appearance page, games moved to More. The mihrab hero returns on Home.

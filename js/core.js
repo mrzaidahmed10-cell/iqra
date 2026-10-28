@@ -115,7 +115,7 @@ function touchStreak() {
 }
 const Q = (id, t, g, c, k) => ({ id, t, g, c, k });
 const QUESTS_BY = {
-  foundations: [Q('lesson', 'Finish a lesson', 1, 15, 'lessons'), Q('xp', 'Earn 60 XP', 60, 15, 'xp'), Q('listen', 'Listen to 5 ayahs', 5, 10, 'listens')],
+  foundations: [Q('lesson', 'Finish a lesson', 1, 15, 'lessons'), Q('study', 'Study for 5 minutes', 300, 15, 'secs'), Q('listen', 'Listen to 5 ayahs', 5, 10, 'listens')],
   reading: [Q('lesson', 'Finish a lesson', 1, 15, 'lessons'), Q('learn5', 'Learn 5 ayahs', 5, 20, 'ayahs'), Q('listen', 'Listen to 10 ayahs', 10, 10, 'listens')],
   tajweed: [Q('lesson', 'Finish a lesson', 1, 15, 'lessons'), Q('learn5', 'Learn 5 ayahs', 5, 20, 'ayahs'), Q('recite', 'Recite once and get graded', 1, 20, 'recites')],
   hifz: [Q('learn10', 'Learn 10 ayahs', 10, 25, 'ayahs'), Q('revise', 'Revise past ayahs', 1, 15, 'reviews'), Q('recite', 'Recite and get graded', 1, 20, 'recites')],
@@ -124,23 +124,23 @@ export const questsNow = () => QUESTS_BY[track()] || QUESTS_BY.foundations;
 function claimQuests() {
   const d = day(); let got = 0;
   for (const q of questsNow()) if (d[q.k] >= q.g && !d.claimed[q.id]) { d.claimed[q.id] = 1; S.coins += q.c; got += q.c; }
-  if (got) setTimeout(() => { toast(`Quest complete. +${got} coins`, 'target'); sfx('done'); }, 500);
+  if (got) setTimeout(() => { toast('Daily goal complete', 'check'); sfx('done'); }, 500);
 }
 export const BADGES = [
   { id: 'first', i: 'leaf', n: 'First steps', d: 'Finish your first lesson', ok: s => s.sessions >= 1 },
-  { id: 's3', i: 'flame', n: 'On fire', d: '3-day streak', ok: s => s.bestStreak >= 3 },
-  { id: 's7', i: 'zap', n: 'Week warrior', d: '7-day streak', ok: s => s.bestStreak >= 7 },
-  { id: 's30', i: 'trophy', n: 'Unstoppable', d: '30-day streak', ok: s => s.bestStreak >= 30 },
+  { id: 's3', i: 'flame', n: 'Three days running', d: 'Practice 3 days in a row', ok: s => s.bestStreak >= 3 },
+  { id: 's7', i: 'zap', n: 'A full week', d: 'Practice 7 days in a row', ok: s => s.bestStreak >= 7 },
+  { id: 's30', i: 'trophy', n: 'A month of practice', d: 'Practice 30 days in a row', ok: s => s.bestStreak >= 30 },
   { id: 'a20', i: 'book', n: 'Twenty ayahs', d: 'Learn 20 ayahs', ok: s => learnedTotal(s) >= 20 },
-  { id: 'a100', i: 'layers', n: 'Hundred club', d: 'Learn 100 ayahs', ok: s => learnedTotal(s) >= 100 },
-  { id: 'a500', i: 'gem', n: 'Light keeper', d: 'Learn 500 ayahs', ok: s => learnedTotal(s) >= 500 },
+  { id: 'a100', i: 'layers', n: '100 ayahs', d: 'Learn 100 ayahs', ok: s => learnedTotal(s) >= 100 },
+  { id: 'a500', i: 'gem', n: '500 ayahs', d: 'Learn 500 ayahs', ok: s => learnedTotal(s) >= 500 },
   { id: 'surah1', i: 'dome', n: 'Surah complete', d: 'Finish learning a surah', ok: s => Object.values(s.surahs).some(r => r.done) },
   { id: 'm1', i: 'award', n: 'Mastery', d: 'Master your first surah', ok: s => masteredTotal(s) >= 1 },
   { id: 'm5', i: 'crown', n: 'Five mastered', d: 'Master 5 surahs', ok: s => masteredTotal(s) >= 5 },
-  { id: 'perfect', i: 'star', n: 'Flawless', d: 'Get 3 stars on a lesson', ok: s => s.perfects >= 1 },
-  { id: 'l5', i: 'compass', n: 'Level 5', d: 'Reach level 5', ok: s => levelOf(s.xp) >= 5 },
-  { id: 'l10', i: 'sunrise', n: 'Level 10', d: 'Reach level 10', ok: s => levelOf(s.xp) >= 10 },
-  { id: 'gamer', i: 'dice', n: 'Break master', d: 'Play 5 break games', ok: s => s.gamesPlayed >= 5 },
+  { id: 'perfect', i: 'star', n: 'Clean lesson', d: 'Pass a lesson with 95% or more', ok: s => s.perfects >= 1 },
+  { id: 'l5', i: 'compass', n: 'Stage 5', d: 'Reach stage 5', ok: s => levelOf(s.xp) >= 5 },
+  { id: 'l10', i: 'sunrise', n: 'Stage 10', d: 'Reach stage 10', ok: s => levelOf(s.xp) >= 10 },
+  { id: 'gamer', i: 'dice', n: 'Rest well', d: 'Take 5 short breaks', ok: s => s.gamesPlayed >= 5 },
   { id: 'alpha', i: 'type', n: 'Letter learner', d: 'Complete the Arabic alphabet', ok: s => alphabetDone(s) },
   { id: 'recite', i: 'mic', n: 'Reciter', d: 'Get a recitation graded', ok: s => (s.recites || []).length >= 1 },
   { id: 'nur', i: 'message', n: 'Curious mind', d: 'Ask Nur 5 questions', ok: s => (s.nur || []).filter(m => m.r === 'user').length >= 5 },
@@ -161,8 +161,8 @@ export function reward({ xp = 0, coins = 0, streak = true } = {}) {
   const badges = checkBadges();
   save();
   const after = levelOf(S.xp);
-  if (after > before) { sfx('lvl'); burst(); setTimeout(() => toast(`Level ${after}`, 'trophy'), 300); }
-  badges.forEach((b, i) => setTimeout(() => { toast(`Badge: ${b.n}`, b.i); sfx('badge'); haptic('badge'); }, 900 + i * 700));
+  if (after > before) setTimeout(() => toast(`You are now at stage ${after}`, 'leaf'), 300);
+  badges.forEach((b, i) => setTimeout(() => { toast(`Milestone: ${b.n}`, b.i); haptic('done'); }, 900 + i * 700));
   return { leveled: after > before ? after : 0, badges };
 }
 

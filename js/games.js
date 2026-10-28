@@ -21,9 +21,9 @@ export function openArcade() {
       if (stop) stop(); stop = null;
       const paid = day().breaks < 3; day().breaks++; S.gamesPlayed++;
       const r = reward({ xp: paid ? 10 : 0, coins: paid ? coins : 0, streak: false });
-      feel('done'); if (score > 0) burst();
+      feel('done');
       $('#stage', ov).innerHTML = `<div class="working"><h2>${esc(title)}</h2><p class="muted">Score</p><div class="score">${score}</div>
-        <p>${paid ? `+${coins} coins · +10 XP` : 'Rewards used up for today. Come back tomorrow.'}</p>${r.leveled ? `<p class="lvl-line">${ic('trophy', 18)} Level ${r.leveled}</p>` : ''}
+        
         <div class="col-gap"><button class="btn primary" data-k="${kind}">Play again</button><button class="btn" data-k="menu">Other games</button><button class="btn ghost" data-k="close">Back to learning</button></div></div>`;
     };
     stop = { memory, bubbles, flappy }[kind]($('#stage', ov), end);

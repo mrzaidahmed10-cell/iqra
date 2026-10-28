@@ -19,7 +19,7 @@ import { back, ring, val, title, getErr, timers, clearTimers, refresh, lrow } fr
 import * as P from './pages.js';
 import { runPlacement } from './placement.js';
 
-let surahList = [], rtok = 0, qFilter = 'all', qSearch = '', chartMetric = 'xp', progTab = 'overview', lFilter = 'all', lSearch = '';
+let surahList = [], rtok = 0, qFilter = 'all', qSearch = '', chartMetric = 'minutes', progTab = 'overview', lFilter = 'all', lSearch = '';
 const app = $('#app');
 
 // =====================================================================
@@ -163,7 +163,7 @@ bus.addEventListener('audio', e => { $$('.ayah.playing').forEach(x => x.classLis
 function fillBar(view, a) {
   const bar = $('#appbar'); if (!bar) return; const L = $('.ab-l', bar), bk = view.querySelector('.back');
   L.replaceChildren(); if (bk) L.append(bk); else L.innerHTML = `<a class="wordmark" href="#/home" aria-label="Iqra home"><span class="wm-dot"></span>Iqra</a>`;
-  const t = view.querySelector('h1,h2'); $('.ab-t', bar).textContent = t && !/^Assalamu/.test(t.textContent) ? t.textContent : ''; bar.classList.toggle('scrolled', window.scrollY > 40); bar.dataset.v = a; $('.ab-r', bar).innerHTML = a === 'home' ? `<span class="chip">${ic('flame', 14)} ${streakNow()}</span><span class="chip gold">${ic('coin', 14)} ${S.coins}</span>` : '';
+  const t = view.querySelector('h1,h2'); $('.ab-t', bar).textContent = t && !/^Assalamu/.test(t.textContent) ? t.textContent : ''; bar.classList.toggle('scrolled', window.scrollY > 40); bar.dataset.v = a; $('.ab-r', bar).innerHTML = a === 'home' && streakNow() > 0 ? `<span class="streak-t">${streakNow()}-day streak</span>` : '';
 }
 window.addEventListener('scroll', () => { const b = $('#appbar'); if (b) b.classList.toggle('scrolled', window.scrollY > 40); }, { passive: true });
 function nurHere() {
@@ -226,31 +226,33 @@ function upNext() {
 }
 const nudge = () => { const n = streakNow(), d = day(); if (n > 0 && dayMinutes(d) < 1 && new Date().getHours() >= 17) return `<p class="nudge">${ic('flame', 16)}<span>Your ${n}-day streak ends tonight. A 5-minute lesson keeps it.</span></p>`; return ''; };
 const goalRing = (p, mins, goal) => `<div class="gring2" role="img" aria-label="${mins} of ${goal} minutes today"><svg viewBox="0 0 44 44" aria-hidden="true"><circle cx="22" cy="22" r="19" class="g-t"/><circle cx="22" cy="22" r="19" class="g-p" id="gp" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100" data-p="${p}" transform="rotate(-90 22 22)"/></svg><b>${mins}</b><small>of ${goal}m</small></div>`;
-function todayCard(p, lv, lo, hi, d, ses, tr) {
-  const goal = p.goalMin || 10, prog = Math.min(1, d.secs / (goal * 60)), it = nextItem(surahList);
-  let kick = 'Up next', title = 'You finished your path', sub = 'Pick any surah or revise what you know', cta = `<a class="btn primary big" href="#/quran">Browse the Quran</a>`, ar = '', ico = 'book';
-  if (ses) { kick = 'Pick up where you left off'; title = ses.title; sub = `${ses.sub ? ses.sub + ' · ' : ''}${ses.pct}% done`; cta = `<button class="btn primary big" data-act="resume">Resume</button>`; ico = 'play'; }
-  else if (it && it.k === 'lesson') { const m = lessonMeta(it.id); kick = 'Up next'; title = m.title; sub = m.sub; ar = m.short || ''; ico = m.icon; cta = `<button class="btn primary big" data-act="start-lesson" data-id="${it.id}">Start lesson</button>`; }
-  else if (it) { const s = surahList[it.n - 1], l = (S.surahs[it.n] || { learned: [] }).learned.length; kick = l ? 'Continue learning' : 'Up next'; title = s.en; sub = `${s.tr} · ${l}/${s.count} ayahs`; ar = s.ar; ico = 'book'; cta = `<button class="btn primary big" data-act="learn" data-n="${s.n}">${l ? 'Continue' : 'Start learning'}</button>`; }
-  return `<section class="card tcard">${goalRing(prog, dayMinutes(d), goal)}<div class="today-t"><small class="kick">${esc(kick)}</small><h2>${esc(title)}</h2><p class="muted">${esc(sub)}</p></div>${ar ? `<span class="ar today-ar" dir="rtl">${esc(ar)}</span>` : ''}${cta}
-    <button class="lvl" data-act="level" aria-label="Change your plan"><span class="lv-n">Level ${lv}</span><span class="lv-bar"><i style="width:${Math.round((S.xp - lo) / (hi - lo) * 100)}%"></i></span><span class="lv-x">${S.xp - lo}/${hi - lo} XP</span><span class="lv-p">${ic(tr.icon, 14)} ${esc(tr.n)} ${ic('chevR', 12)}</span></button></section>`;
+function todayCard(p, d, ses, tr) {
+  const goal = p.goalMin || 10, prog = Math.min(1, d.secs / (goal * 60)), it = nextItem(surahList), mins = dayMinutes(d);
+  let kick = 'Up next', title = 'You finished your path', sub = 'Pick any surah or revise what you know', cta = `<a class="btn primary big grow" href="#/quran">Browse the Quran</a>`, ar = '', ico = 'book';
+  if (ses) { kick = 'Pick up where you left off'; title = ses.title; sub = `${ses.sub ? ses.sub + ' · ' : ''}${ses.pct}% done`; cta = `<button class="btn primary big grow" data-act="resume">Resume</button>`; ico = 'play'; }
+  else if (it && it.k === 'lesson') { const m = lessonMeta(it.id); title = m.title; sub = m.sub; ar = m.short || ''; ico = m.icon; cta = `<button class="btn primary big grow" data-act="start-lesson" data-id="${it.id}">Start lesson</button>`; }
+  else if (it) { const s = surahList[it.n - 1], l = (S.surahs[it.n] || { learned: [] }).learned.length; kick = l ? 'Continue learning' : 'Up next'; title = s.en; sub = `${s.tr} · ${l}/${s.count} ayahs`; ar = s.ar; cta = `<button class="btn primary big grow" data-act="learn" data-n="${s.n}">${l ? 'Continue' : 'Start learning'}</button>`; }
+  const left = Math.max(0, goal - mins);
+  return `<section class="card hero2"><div class="h2-top"><div class="h2-l"><small class="kick">Today</small><h2 class="mins">${mins}<span> of ${goal} min</span></h2><p class="muted">${left ? `${left} min to reach your goal` : 'Daily goal reached. Well done.'}</p></div>${archHTML(prog)}</div>
+    <div class="h2-next"><span class="ico">${ic(ico, 20)}</span><div class="grow"><small class="muted">${esc(kick)}</small><b>${esc(title)}</b><small class="muted">${esc(sub)}</small></div>${ar ? `<span class="ar h2-ar" dir="rtl">${esc(ar)}</span>` : ''}</div>
+    <div class="row-gap">${cta}<a class="btn" href="#/path">${ic(tr.icon, 16)} Path</a></div></section>`;
 }
 async function viewHome() {
   if (!surahList.length) { try { surahList = await getSurahList(); window.__surahList = surahList; } catch { /* offline */ } }
-  const p = S.profile || {}, lv = levelOf(S.xp), lo = xpFor(lv), hi = xpFor(lv + 1), d = day(), hj = hijri();
+  const p = S.profile || {}, d = day(), hj = hijri();
   const ses = sessionInfo(), due = dueReviews().length, tr = TRACKS[S.track], wk = weakCount(), qs = questsNow(), qDone = qs.filter(q => (d[q.k] || 0) >= q.g).length;
   const row = (act, icon, t, sub, v = '') => `<button class="hrow" data-act="${act}"><span class="ico">${ic(icon, 20)}</span><div class="grow"><b>${t}</b><small class="muted">${sub}</small></div>${v ? `<b class="hrow-v">${v}</b>` : ''}${ic('chevR', 16, 'dim')}</button>`;
   const foryou = [EX.prayerWidget(), due >= 4 ? row('review', 'repeat', `${due} ayahs to refresh`, 'Keeps them from fading') : '', wk ? row('weak', 'target', `${wk} word${wk > 1 ? 's' : ''} to revisit`, 'Words you missed before') : ''].filter(Boolean).join('');
   return {
-    html: `<header class="hhead"><small class="muted">${hj ? esc(hj.text) : ''}</small><h1>Assalamu alaykum, ${esc(p.name || 'friend')}</h1></header>
+    html: `<header class="hhead"><span class="avatar">${ic(S.settings.avatar, 22)}</span><div><small class="muted">${hj ? esc(hj.text) : ''}</small><h1>Assalamu alaykum, ${esc(p.name || 'friend')}</h1></div></header>
     ${nudge()}
     ${!p.placement && !p.placementLater ? `<section class="card up plc-nudge"><div class="up-h"><span class="ico big">${ic('compass', 22)}</span><div><small class="muted">Recommended</small><h3>Find your level</h3><p class="muted">A 5 minute quiz tunes your lessons and how strict your coach is.</p></div></div><div class="row-gap"><button class="btn primary grow" data-act="placement">Take the quiz</button><button class="btn ghost" data-act="plc-later">Not now</button></div></section>` : ''}
-    ${todayCard(p, lv, lo, hi, d, ses, tr)}
+    ${todayCard(p, d, ses, tr)}
     <section class="card rl-list">${foryou}</section>
-    <section class="qa" aria-label="Quick actions"><button data-act="recite-pick"><span class="ico">${ic('mic', 22)}</span><b>Recite</b></button><a href="#/listen"><span class="ico">${ic('headphones', 22)}</span><b>Listen</b></a><button data-act="arcade"><span class="ico">${ic('dice', 22)}</span><b>Games</b></button><a href="#/more/halal"><span class="ico">${ic('scan', 22)}</span><b>Halal</b></a></section>
-    <details class="card tasks"><summary><div class="grow"><h3>Today's tasks</h3><div class="seg-dots">${qs.map(q => `<i class="${(d[q.k] || 0) >= q.g ? 'on' : ''}"></i>`).join('')}</div></div><span class="pill ${qDone === qs.length ? 'gold' : ''}">${qDone}/${qs.length}</span>${ic('chevD', 18, 'dim')}</summary>${qs.map(q => { const v = Math.min(q.g, d[q.k] || 0); return `<div class="quest ${v >= q.g ? 'done' : ''}"><span class="qi">${ic(v >= q.g ? 'check' : 'target', 16)}</span><div class="grow"><b>${q.t}</b><div class="progress thin"><i style="width:${v / q.g * 100}%"></i></div></div><small>${ic('coin', 12)} ${q.c}</small></div>`; }).join('')}<small class="muted">Resets at midnight</small></details>
+    <section class="qa" aria-label="Quick actions"><button data-act="recite-pick"><span class="ico">${ic('mic', 22)}</span><b>Recite</b></button><a href="#/listen"><span class="ico">${ic('headphones', 22)}</span><b>Listen</b></a><button data-act="nur"><span class="ico">${ic('sparkle', 22)}</span><b>Ask Nur</b></button><a href="#/more/halal"><span class="ico">${ic('scan', 22)}</span><b>Halal</b></a></section>
+    <details class="card tasks"><summary><div class="grow"><h3>Today's goals</h3><div class="seg-dots">${qs.map(q => `<i class="${(d[q.k] || 0) >= q.g ? 'on' : ''}"></i>`).join('')}</div></div><span class="pill ${qDone === qs.length ? 'gold' : ''}">${qDone}/${qs.length}</span>${ic('chevD', 18, 'dim')}</summary>${qs.map(q => { const v = Math.min(q.g, d[q.k] || 0); return `<div class="quest ${v >= q.g ? 'done' : ''}"><span class="qi">${ic(v >= q.g ? 'check' : 'target', 16)}</span><div class="grow"><b>${q.t}</b><div class="progress thin"><i style="width:${v / q.g * 100}%"></i></div></div></div>`; }).join('')}<small class="muted">Resets at midnight</small></details>
     <section class="card daily" id="daily"><small class="muted">Ayah of the day</small><div class="skeleton"></div></section>`,
-    after: () => { loadDaily(); EX.startPrayerWidget(); requestAnimationFrame(() => requestAnimationFrame(() => { const a = $('#gp'); if (a) a.setAttribute('stroke-dashoffset', 100 * (1 - +a.dataset.p)); })); },
+    after: () => { loadDaily(); EX.startPrayerWidget(); requestAnimationFrame(() => requestAnimationFrame(() => { const a = $('#aprog'); if (a) a.setAttribute('stroke-dashoffset', 100 * (1 - +a.dataset.p)); })); },
   };
 }
 async function loadDaily() {
@@ -331,7 +333,7 @@ async function viewSurah(n) {
   const s = surahList[n - 1]; if (!s) return { html: `${back('#/quran', 'Quran')}<p class="muted">Surah not found.</p>` };
   const ayahs = await getSurah(n), r = S.surahs[n], st = statusOf(n), l = r ? r.learned.length : 0, lock = !unlocked(s), ses = sessionInfo();
   const resume = ses && ses.kind === 'surah' && ses.n === n;
-  const act = lock ? `<div class="banner">${ic('lock', 16)} Reach <b>level ${reqLevel(s.count)}</b> to unlock (you're level ${levelOf(S.xp)}). Or turn on <a href="#/more/settings">Explorer mode</a>.</div>`
+  const act = lock ? `<div class="banner">${ic('lock', 16)} Opens at <b>stage ${reqLevel(s.count)}</b> as you keep learning (you're at stage ${levelOf(S.xp)}). Or turn on <a href="#/more/settings">Explorer mode</a>.</div>`
     : `<div class="col-gap">${resume ? `<button class="btn primary big" data-act="resume">Resume lesson · ${ses.pct}%</button>` : st === 'learned' || st === 'mastered' ? `<button class="btn primary big" data-act="recite-surah" data-n="${n}" data-m="${st === 'learned' ? 1 : ''}">${ic('mic', 18)} ${st === 'mastered' ? 'Recite again' : 'Recite for mastery'}</button>` : `<button class="btn primary big" data-act="learn" data-n="${n}">${l ? 'Continue learning' : 'Start learning'}</button>`}
       <div class="row-gap"><button class="btn grow" data-act="recite-surah" data-n="${n}">${ic('mic', 16)} Practice</button><button class="btn grow" data-act="play-surah" data-n="${n}">${ic('headphones', 16)} Listen</button><button class="btn grow" data-act="nur-surah" data-n="${n}">${ic('message', 16)} Nur</button></div></div>`;
   return {
@@ -354,20 +356,20 @@ async function viewProgress() {
   const val_ = k => { const r = S.daily[k]; if (!r) return 0; return chartMetric === 'minutes' ? Math.round((r.secs || 0) / 60) : r[chartMetric] || 0; };
   const vals = days.map(d => val_(d.k)), lv = levelOf(S.xp), lt = learnedTotal(), mt = masteredTotal();
   const doneN = surahList.filter(s => ['learned', 'mastered'].includes(statusOf(s.n))).length, mastered = surahList.filter(s => statusOf(s.n) === 'mastered');
-  const M = [['xp', 'XP'], ['ayahs', 'Ayahs'], ['minutes', 'Minutes']], lessonsDone = Object.keys(S.lessons).length;
+  const M = [['minutes', 'Minutes'], ['ayahs', 'Ayahs']], lessonsDone = Object.keys(S.lessons).length;
   const stat = (v, l) => `<div class="st"><b>${v}</b><small>${l}</small></div>`;
-  const over = `<section class="card statband">${stat(S.xp, 'total XP')}${stat(streakNow(), 'day streak')}${stat(lt, 'ayahs learned')}</section>
+  const over = `<section class="card statband">${stat(lessonsDone, 'lessons done')}${stat(streakNow(), 'day streak')}${stat(lt, 'ayahs learned')}</section>
     <section class="card"><div class="row-between"><h3>This week</h3><div class="seg sm">${M.map(m => `<button class="${chartMetric === m[0] ? 'on' : ''}" data-act="metric" data-m="${m[0]}">${m[1]}</button>`).join('')}</div></div>${vals.some(v => v > 0) ? barChart(vals, days.map(d => d.l)) : `<p class="muted center empty-c">Nothing yet this week. A short lesson starts your chart.</p>`}</section>
-    <section class="card quranbar"><div class="row-between"><h3>The Quran</h3><b>${(lt / TOTAL_AYAHS * 100).toFixed(1)}%</b></div><div class="progress"><i style="width:${Math.max(lt ? 1 : 0, lt / TOTAL_AYAHS * 100)}%"></i></div><div class="qb-row"><span><b>${doneN}</b>/114 surahs learned</span><span><b>${mt}</b>/114 mastered</span><span><b>${lessonsDone}</b> lessons</span></div></section>
+    <section class="card quranbar"><div class="row-between"><h3>The Quran</h3><b>${(lt / TOTAL_AYAHS * 100).toFixed(1)}%</b></div><div class="progress"><i style="width:${Math.max(lt ? 1 : 0, lt / TOTAL_AYAHS * 100)}%"></i></div><div class="qb-row"><span><b>${doneN}</b>/114 surahs learned</span><span><b>${mt}</b>/114 mastered</span><span><b>${S.recites.length}</b> recitations</span></div></section>
     ${weakCard()}
     <section class="card"><h3>Recitations</h3>${S.recites.length ? S.recites.slice(0, 6).map(r => { const g = gradeOf(r.score); return `<div class="mrow"><span class="ico">${ic('mic', 18)}</span><div class="grow"><b>${esc(r.name)} · ${r.from}${r.to > r.from ? '–' + r.to : ''}</b><small class="muted">${new Date(r.at).toLocaleDateString()} · ${g[0]}${r.mastery ? ' · mastery attempt' : ''}</small></div><b class="${g[1] === 'good' ? 'ok-t' : ''}">${r.score}%</b></div>`; }).join('') : '<p class="muted">Recite any surah to see your graded history here.</p>'}</section>`;
   const surs = `<section class="card"><h3>All 114 surahs</h3><div class="legend"><span><i class="c new"></i>new</span><span><i class="c learning"></i>learning</span><span><i class="c learned"></i>learned</span><span><i class="c mastered"></i>mastered</span></div><div class="grid114">${surahList.map(s => `<a class="cell ${statusOf(s.n)}" href="#/surah/${s.n}" title="${esc(s.en)}">${s.n}</a>`).join('')}</div></section>
     <section class="card"><h3>Mastery</h3>${mastered.length ? mastered.map(s => `<a class="mrow" href="#/surah/${s.n}"><span class="ico">${ic('award', 18)}</span><div class="grow"><b>${esc(s.en)}</b><small class="muted">${new Date(S.surahs[s.n].masteredAt || Date.now()).toLocaleDateString()}</small></div><b class="ok-t">${S.surahs[s.n].best || 100}%</b></a>`).join('') : '<p class="muted">No surah mastered yet. Learn one, then recite it with no real mistakes.</p>'}</section>`;
   const got = BADGES.filter(b => S.badges[b.id]), lockedB = BADGES.filter(b => !S.badges[b.id]);
-  const bdg = `<section class="card"><h3>Badges <small class="muted">${got.length}/${BADGES.length}</small></h3><div class="badges">${got.concat(lockedB).map(b => `<div class="badge ${S.badges[b.id] ? 'got' : ''}" title="${esc(b.d)}"><span>${ic(S.badges[b.id] ? b.i : 'lock', 22)}</span><b>${esc(b.n)}</b><small>${esc(b.d)}</small></div>`).join('')}</div></section>`;
+  const bdg = `<section class="card"><h3>Milestones <small class="muted">${got.length}/${BADGES.length}</small></h3><div class="badges">${got.concat(lockedB).map(b => `<div class="badge ${S.badges[b.id] ? 'got' : ''}" title="${esc(b.d)}"><span>${ic(S.badges[b.id] ? b.i : 'lock', 22)}</span><b>${esc(b.n)}</b><small>${esc(b.d)}</small></div>`).join('')}</div></section>`;
   return {
-    html: `<header class="top"><h1>Progress</h1><span class="chip">Lv ${lv} · ${title(lv)}</span></header>
-    <div class="seg" role="tablist">${[['overview', 'Overview'], ['surahs', 'Surahs'], ['badges', 'Badges']].map(t => `<button role="tab" aria-selected="${progTab === t[0]}" class="${progTab === t[0] ? 'on' : ''}" data-act="ptab" data-v="${t[0]}">${t[1]}</button>`).join('')}</div>
+    html: `<header class="top"><h1>Progress</h1></header>
+    <div class="seg" role="tablist">${[['overview', 'Overview'], ['surahs', 'Surahs'], ['badges', 'Milestones']].map(t => `<button role="tab" aria-selected="${progTab === t[0]}" class="${progTab === t[0] ? 'on' : ''}" data-act="ptab" data-v="${t[0]}">${t[1]}</button>`).join('')}</div>
     ${progTab === 'surahs' ? surs : progTab === 'badges' ? bdg : over}`,
   };
 }
@@ -377,14 +379,14 @@ async function viewProgress() {
 // =====================================================================
 function viewMore() {
   const G = [
-    ['Learn', [['path', 'route', 'Your path', 'Lessons and library'], ['alphabet', 'type', 'Arabic alphabet', 'Letters and sounds'], ['advice', 'bulb', 'Learning advice', 'Memorization tips']]],
+    ['Learn', [['path', 'route', 'Your path', 'Lessons and library'], ['alphabet', 'type', 'Arabic alphabet', 'Letters and sounds'], ['advice', 'bulb', 'Learning advice', 'Memorization tips'], ['games', 'dice', 'Break games', 'Short letter games to rest your mind']]],
     ['Daily life', [['community', 'users', 'Community', 'News from the Iqra team'], ['halal', 'scan', 'Halal scanner', 'Scan a barcode to check ingredients'], ['dhikr', 'beads', 'Dhikr counter', 'Tasbih'], ['fasting', 'moon', 'Fasting log', 'Track your fasts'], ['hadith', 'quote', 'Hadith', 'Daily wisdom']]],
-    ['You', [['account', 'user', 'Account', 'Profile, level and sign-in'], ['shop', 'bag', 'Rewards', `${S.coins} coins to spend`], ['settings', 'settings', 'Settings', 'Appearance, sound, reciter']]],
+    ['You', [['account', 'user', 'Account', 'Profile and sign-in'], ['shop', 'bag', 'Appearance', 'Accent color and avatar'], ['settings', 'settings', 'Settings', 'Appearance, sound, reciter']]],
     ['About', [['about', 'info', 'About Iqra', 'How it works'], ['privacy', 'shield', 'Privacy policy', 'How your data is used'], ['terms', 'file', 'Terms of use', 'The rules of the app']]],
   ];
   const href = k => k === 'path' ? '#/path' : k === 'privacy' || k === 'terms' ? `${k}.html` : `#/more/${k}`;
-  return { html: `<header class="top"><h1>More</h1></header><a class="card profile" href="#/more/account"><span class="avatar big">${ic(S.settings.avatar, 26)}</span><div class="grow"><b>${esc((S.profile && S.profile.name) || 'Your account')}</b><small class="muted">Level ${levelOf(S.xp)} · ${title(levelOf(S.xp))} · ${S.coins} coins</small></div>${ic('chevR', 18, 'dim')}</a>
-    ${G.map(g => `<h3 class="grp">${g[0]}</h3><div class="card list">${g[1].map(r => lrow(r[1], r[2], r[3], href(r[0]), r[0] === 'community' && EX.unreadCount() ? `<span class="badge-n">${EX.unreadCount()}</span>` : '')).join('')}</div>`).join('')}` };
+  return { html: `<header class="top"><h1>More</h1></header><a class="card profile" href="#/more/account"><span class="avatar big">${ic(S.settings.avatar, 26)}</span><div class="grow"><b>${esc((S.profile && S.profile.name) || 'Your account')}</b><small class="muted">${esc(TRACKS[S.track].n)} track${streakNow() ? ' · ' + streakNow() + '-day streak' : ''}</small></div>${ic('chevR', 18, 'dim')}</a>
+    ${G.map(g => `<h3 class="grp">${g[0]}</h3><div class="card list">${g[1].map(r => r[0] === 'games' ? `<button class="lrow" data-act="arcade"><span class="ico">${ic(r[1], 20)}</span><div class="grow"><b>${r[2]}</b><small class="muted">${r[3]}</small></div>${ic('chevR', 18, 'dim')}</button>` : lrow(r[1], r[2], r[3], href(r[0]), r[0] === 'community' && EX.unreadCount() ? `<span class="badge-n">${EX.unreadCount()}</span>` : '')).join('')}</div>`).join('')}` };
 }
 
 // =====================================================================
