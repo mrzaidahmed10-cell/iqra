@@ -267,7 +267,7 @@ function open(sess, resumed) {
     stopClip(); const total = sess.ok + sess.bad, acc = total ? sess.ok / total : 1, mastered = acc >= .95, passed = sess.kind === 'review' || acc >= .7, stars = mastered ? 3 : passed ? 2 : 1;
     const gain = passed ? { xp: sess.ok * 4 + 20 + stars * 5 + (sess.kind === 'review' ? 10 : 0), coins: 5 + stars * 3 } : { xp: sess.ok * 2, coins: 0 };
     if (sess.kind === 'lesson' && passed) S.lessons[sess.id] = { at: Date.now(), stars: Math.max(stars, (S.lessons[sess.id] || {}).stars || 0) };
-    if (sess.kind === 'review') { day().reviews++; (sess.rvDone || []).forEach(x => { const r = sr(x.n); r.rv[x.a] = Date.now(); }); } else day().lessons++;
+    if (sess.kind === 'review') { day().reviews++; (sess.rvDone || []).forEach(x => { const r = sr(x.n); r.rv[x.a] = Date.now(); }); } else if (passed) day().lessons++;
     if (sess.kind !== 'review') { S.sessions++; if (stars === 3) S.perfects++; }
     const secs = Math.round((Date.now() - sess.started) / 1000);
     const r = reward(gain); S.session = null; save(); sfx('done'); haptic('done');
