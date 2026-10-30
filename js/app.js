@@ -78,7 +78,7 @@ const NAV = [['home', 'Home', 'home'], ['quran', 'Quran', 'book'], ['prayer', 'P
 async function boot() {
   document.body.classList.remove('authing'); applyTheme();
   app.innerHTML = `<header class="appbar" id="appbar"><div class="ab-l"></div><div class="ab-t" aria-hidden="true"></div><div class="ab-r"></div><button class="ab-nur" data-act="nur" aria-label="Ask Nur">${ic('sparkle', 20)}</button></header><div id="offline" class="offline" hidden role="status">You're offline. Reading and saved lessons still work.</div><main id="view" class="view"></main><div id="mini" class="mini" hidden></div>
-    <nav class="nav" aria-label="Main"><span class="nav-glass"></span><span class="nav-pill"></span>${NAV.map(n => `<a href="#/${n[0]}" data-tab="${n[0]}"><span class="ni">${ic(n[2], 20)}</span><span class="nl">${n[1]}</span></a>`).join('')}</nav>`;
+    <nav class="nav" aria-label="Main"><span class="nav-glass"></span><span class="nav-track"><span class="nav-pill"></span></span>${NAV.map(n => `<a href="#/${n[0]}" data-tab="${n[0]}"><span class="ni">${ic(n[2], 20)}</span><span class="nl">${n[1]}</span></a>`).join('')}</nav>`;
   initNav(); renderMini(); const off = () => { const o = $('#offline'); if (o) o.hidden = navigator.onLine; }; window.addEventListener('online', off); window.addEventListener('offline', off); off();
   try { surahList = await getSurahList(); } catch { surahList = []; }
   window.__surahList = surahList;
@@ -99,27 +99,26 @@ function legalGate() {
 // ---------- the tab bar: slide the highlight, the page only changes when you let go
 let navApi = null;
 function initNav() {
-  const nav = $('.nav'), pill = $('.nav-pill'), links = $$('.nav a'), icons = $$('.nav .ni');
-  const pad = 8; let cw = 0, W = 0, active = 0, x = 0, v = 0, tx = 0, pressed = false, raf = 0, ws = 1, hs = 1, bulge = 0, bv = 0, lastCell = -1, glare = 0;
+  const nav = $('.nav'), pill = $('.nav-pill'), links = $$('.nav a');
+  const pad = 6, inset = 5; let cw = 0, active = 0, x = 0, v = 0, tx = 0, pressed = false, raf = 0, last = 0, lift = 0, lv = 0, lastCell = -1;
   const center = i => pad + cw * (i + .5), cellAt = px => Math.max(0, Math.min(links.length - 1, Math.floor((px - pad) / cw)));
-  const measure = () => { const r = nav.getBoundingClientRect(); W = r.width; cw = (W - 2 * pad) / links.length; pill.style.width = cw + 'px'; if (!pressed) { x = tx = center(active); } paint(); };
+  const lo = () => center(0), hi = () => center(links.length - 1), clampX = px => Math.max(lo(), Math.min(hi(), px));
+  const measure = () => { const r = nav.getBoundingClientRect(); cw = (r.width - 2 * pad) / links.length; pill.style.width = (cw - inset) + 'px'; if (!pressed) x = tx = center(active); paint(); };
   function paint() {
-    const sx = ws * (1 + bulge * .2), sy = hs * (1 - bulge * .1);
-    pill.style.transform = `translate3d(${x - cw / 2}px,0,0) scale(${sx},${sy})`;
-    icons.forEach((el, i) => { const d = (center(i) - x) / (cw * .85), mag = pressed ? .16 * Math.exp(-d * d * 1.6) : 0; el.style.transform = `translateY(${-mag * 8}px) scale(${1 + mag})`; });
-    nav.style.setProperty('--gx', glare + 'px');
+    const st = Math.min(.12, Math.abs(v) / 5200), sx = (1 + st) * (1 + lift * .05), sy = (1 - st * .55) * (1 + lift * .05);
+    pill.style.transform = `translate3d(${x - (cw - inset) / 2}px,0,0) scale(${sx},${sy})`;
   }
-  function frame() {
-    const k = pressed ? .24 : .17, damp = pressed ? .7 : .76;
-    v += (tx - x) * k; v *= damp; x += v;
-    const bt = Math.min(1, Math.abs(v) / 12); bv += (bt - bulge) * .3; bv *= .68; bulge += bv;
-    const wt = pressed ? .86 : 1, ht = pressed ? .92 : 1; ws += (wt - ws) * .22; hs += (ht - hs) * .22; glare += (x - glare) * .3;
+  // Frame-rate independent spring. Slightly underdamped when settling (a soft landing), tight while a finger holds it.
+  function frame(t) {
+    const dt = Math.min(.032, (t - (last || t)) / 1000 || .016); last = t;
+    const k = pressed ? 900 : 380, c = pressed ? 56 : 27, n = 3, h = dt / n;
+    for (let i = 0; i < n; i++) { v += (-k * (x - tx) - c * v) * h; x += v * h; if (x < lo()) { x = lo(); v = Math.max(0, v) * .2; } else if (x > hi()) { x = hi(); v = Math.min(0, v) * .2; } }
+    const lt = pressed ? 1 : 0; lv += (-260 * (lift - lt) - 26 * lv) * dt; lift += lv * dt;
     paint();
-    if (pressed || Math.abs(tx - x) > .15 || Math.abs(v) > .08 || Math.abs(bulge) > .004 || Math.abs(ws - wt) > .004 || Math.abs(hs - ht) > .004) raf = requestAnimationFrame(frame);
-    else { x = tx; v = 0; bulge = 0; ws = wt; hs = ht; raf = 0; paint(); }
+    if (pressed || Math.abs(tx - x) > .08 || Math.abs(v) > .6 || Math.abs(lift - lt) > .003 || Math.abs(lv) > .01) raf = requestAnimationFrame(frame);
+    else { x = tx; v = 0; lift = lt; lv = 0; raf = 0; last = 0; paint(); }
   }
-  const kick = () => { if (!raf) raf = requestAnimationFrame(frame); };
-  const clampX = px => Math.max(center(0) - cw * .2, Math.min(center(links.length - 1) + cw * .2, px));
+  const kick = () => { if (!raf) { last = 0; raf = requestAnimationFrame(frame); } };
   const hover = c => links.forEach((a, i) => a.classList.toggle('hot', pressed && i === c));
   nav.addEventListener('pointerdown', e => {
     if (e.button > 0) return; pressed = true; try { nav.setPointerCapture(e.pointerId); } catch { /* ignore */ }
@@ -228,14 +227,14 @@ const nudge = () => { const n = streakNow(), d = day(); if (n > 0 && dayMinutes(
 const goalRing = (p, mins, goal) => `<div class="gring2" role="img" aria-label="${mins} of ${goal} minutes today"><svg viewBox="0 0 44 44" aria-hidden="true"><circle cx="22" cy="22" r="19" class="g-t"/><circle cx="22" cy="22" r="19" class="g-p" id="gp" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100" data-p="${p}" transform="rotate(-90 22 22)"/></svg><b>${mins}</b><small>of ${goal}m</small></div>`;
 function todayCard(p, d, ses, tr) {
   const goal = p.goalMin || 10, prog = Math.min(1, d.secs / (goal * 60)), it = nextItem(surahList), mins = dayMinutes(d);
-  let kick = 'Up next', title = 'You finished your path', sub = 'Pick any surah or revise what you know', cta = `<a class="btn primary big grow" href="#/quran">Browse the Quran</a>`, ar = '', ico = 'book';
-  if (ses) { kick = 'Pick up where you left off'; title = ses.title; sub = `${ses.sub ? ses.sub + ' · ' : ''}${ses.pct}% done`; cta = `<button class="btn primary big grow" data-act="resume">Resume</button>`; ico = 'play'; }
-  else if (it && it.k === 'lesson') { const m = lessonMeta(it.id); title = m.title; sub = m.sub; ar = m.short || ''; ico = m.icon; cta = `<button class="btn primary big grow" data-act="start-lesson" data-id="${it.id}">Start lesson</button>`; }
-  else if (it) { const s = surahList[it.n - 1], l = (S.surahs[it.n] || { learned: [] }).learned.length; kick = l ? 'Continue learning' : 'Up next'; title = s.en; sub = `${s.tr} · ${l}/${s.count} ayahs`; ar = s.ar; cta = `<button class="btn primary big grow" data-act="learn" data-n="${s.n}">${l ? 'Continue' : 'Start learning'}</button>`; }
+  let kick = 'Up next', title = 'You finished your path', sub = 'Pick any surah or revise what you know', cta = `<a class="btn primary big wide" href="#/quran">Browse the Quran</a>`, ar = '', ico = 'book';
+  if (ses) { kick = 'Pick up where you left off'; title = ses.title; sub = `${ses.sub ? ses.sub + ' · ' : ''}${ses.pct}% done`; cta = `<button class="btn primary big wide" data-act="resume">Resume</button>`; ico = 'play'; }
+  else if (it && it.k === 'lesson') { const m = lessonMeta(it.id); title = m.title; sub = m.sub; ar = m.short || ''; ico = m.icon; cta = `<button class="btn primary big wide" data-act="start-lesson" data-id="${it.id}">Start lesson</button>`; }
+  else if (it) { const s = surahList[it.n - 1], l = (S.surahs[it.n] || { learned: [] }).learned.length; kick = l ? 'Continue learning' : 'Up next'; title = s.en; sub = `${s.tr} · ${l}/${s.count} ayahs`; ar = s.ar; cta = `<button class="btn primary big wide" data-act="learn" data-n="${s.n}">${l ? 'Continue' : 'Start learning'}</button>`; }
   const left = Math.max(0, goal - mins);
   return `<section class="card hero2"><div class="h2-top"><div class="h2-l"><small class="kick">Today</small><h2 class="mins">${mins}<span> of ${goal} min</span></h2><p class="muted">${left ? `${left} min to reach your goal` : 'Daily goal reached. Well done.'}</p></div>${archHTML(prog)}</div>
     <div class="h2-next"><span class="ico">${ic(ico, 20)}</span><div class="grow"><small class="muted">${esc(kick)}</small><b>${esc(title)}</b><small class="muted">${esc(sub)}</small></div>${ar ? `<span class="ar h2-ar" dir="rtl">${esc(ar)}</span>` : ''}</div>
-    <div class="row-gap">${cta}<a class="btn" href="#/path">${ic(tr.icon, 16)} Path</a></div></section>`;
+    ${cta}</section>`;
 }
 async function viewHome() {
   if (!surahList.length) { try { surahList = await getSurahList(); window.__surahList = surahList; } catch { /* offline */ } }
@@ -248,9 +247,10 @@ async function viewHome() {
     ${nudge()}
     ${!p.placement && !p.placementLater ? `<section class="card up plc-nudge"><div class="up-h"><span class="ico big">${ic('compass', 22)}</span><div><small class="muted">Recommended</small><h3>Find your level</h3><p class="muted">A 5 minute quiz tunes your lessons and how strict your coach is.</p></div></div><div class="row-gap"><button class="btn primary grow" data-act="placement">Take the quiz</button><button class="btn ghost" data-act="plc-later">Not now</button></div></section>` : ''}
     ${todayCard(p, d, ses, tr)}
-    <section class="card rl-list">${foryou}</section>
+    <h3 class="grp">For you</h3>
+    <section class="card rl-list">${foryou}<details class="tasks"><summary class="hrow"><span class="ico">${ic('target', 20)}</span><div class="grow"><b>Today's goals</b><small class="muted">${qDone === qs.length ? 'All done for today' : `${qDone} of ${qs.length} complete`}</small></div>${ic('chevD', 16, 'dim')}</summary><div class="tasks-b">${qs.map(q => { const v = Math.min(q.g, d[q.k] || 0); return `<div class="quest ${v >= q.g ? 'done' : ''}"><span class="qi">${ic(v >= q.g ? 'check' : 'target', 16)}</span><div class="grow"><b>${q.t}</b><div class="progress thin"><i style="width:${v / q.g * 100}%"></i></div></div></div>`; }).join('')}<small class="muted">Resets at midnight</small></div></details></section>
+    <h3 class="grp">Explore</h3>
     <section class="qa" aria-label="Quick actions"><button data-act="recite-pick"><span class="ico">${ic('mic', 22)}</span><b>Recite</b></button><a href="#/listen"><span class="ico">${ic('headphones', 22)}</span><b>Listen</b></a><button data-act="nur"><span class="ico">${ic('sparkle', 22)}</span><b>Ask Nur</b></button><a href="#/more/halal"><span class="ico">${ic('scan', 22)}</span><b>Halal</b></a></section>
-    <details class="card tasks"><summary><div class="grow"><h3>Today's goals</h3><div class="seg-dots">${qs.map(q => `<i class="${(d[q.k] || 0) >= q.g ? 'on' : ''}"></i>`).join('')}</div></div><span class="pill ${qDone === qs.length ? 'gold' : ''}">${qDone}/${qs.length}</span>${ic('chevD', 18, 'dim')}</summary>${qs.map(q => { const v = Math.min(q.g, d[q.k] || 0); return `<div class="quest ${v >= q.g ? 'done' : ''}"><span class="qi">${ic(v >= q.g ? 'check' : 'target', 16)}</span><div class="grow"><b>${q.t}</b><div class="progress thin"><i style="width:${v / q.g * 100}%"></i></div></div></div>`; }).join('')}<small class="muted">Resets at midnight</small></details>
     <section class="card daily" id="daily"><small class="muted">Ayah of the day</small><div class="skeleton"></div></section>`,
     after: () => { loadDaily(); EX.startPrayerWidget(); requestAnimationFrame(() => requestAnimationFrame(() => { const a = $('#aprog'); if (a) a.setAttribute('stroke-dashoffset', 100 * (1 - +a.dataset.p)); })); },
   };

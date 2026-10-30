@@ -911,3 +911,31 @@ a.card:active,button.card:active,.qa>*:active{transform:scale(.98)}
 .hero2 .mins{background:linear-gradient(180deg,var(--ink),color-mix(in srgb,var(--ink) 70%,transparent));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
 .hero2 .mins span{-webkit-text-fill-color:var(--mute)}
 input[type=range]{background:none!important;box-shadow:none!important}input[type=checkbox],input[type=radio]{box-shadow:none}
+/* ===== v13: contained nav pill, calmer Home ===== */
+.nav{padding:0 6px}
+.nav-track{position:absolute;inset:0;border-radius:32px;overflow:hidden;pointer-events:none;z-index:1}
+.nav-pill{position:absolute;left:0;top:6px;height:52px;display:block;border-radius:26px;will-change:transform;transform-origin:50% 50%;background:color-mix(in srgb,var(--ac) 17%,transparent);box-shadow:inset 0 0 0 .5px color-mix(in srgb,var(--ac) 30%,transparent),inset 0 1px 0 rgba(255,255,255,.1)}
+.nav.press .nav-pill{background:color-mix(in srgb,var(--ac) 24%,transparent)}
+.nav a{z-index:2}.nav a.on .ni{transform:none}.nav.press a.on:not(.hot),.nav.press a.on:not(.hot) .ni{color:var(--dim)}
+.btn.wide{width:100%}
+.hero2{padding:18px 18px 16px}
+.h2-top{padding-bottom:12px}
+.h2-next{padding:14px 0 16px}
+.hero2 .mins{font-size:3rem}
+.hero2 .arch{width:96px}
+.h2-top{grid-template-columns:minmax(0,1fr) 96px}
+.view>.grp{margin:22px 16px 0}
+.view>.grp+*{margin-top:8px}
+.card.rl-list .tasks{padding:0;border-radius:0;background:none;box-shadow:none}
+.card.rl-list .tasks summary{list-style:none;padding:10px 16px;min-height:60px;display:flex;align-items:center;gap:12px;cursor:pointer;border-top:.5px solid var(--line);border-radius:0 0 var(--r-card) var(--r-card)}
+.card.rl-list .tasks summary::-webkit-details-marker{display:none}
+.card.rl-list .tasks summary b{font-weight:500;display:block}.card.rl-list .tasks summary small{display:block}
+.card.rl-list .tasks[open] summary>.ic:last-child{transform:rotate(180deg)}
+.tasks-b{padding:2px 16px 14px;border-top:.5px solid var(--line)}
+.tasks-b .quest{padding:10px 0}
+.qa{padding:2px 0}
+.qa>*{min-height:80px;padding:14px 4px 12px}
+.qa .ico{background:none;box-shadow:none;width:30px;height:30px}
+.qa .ico .ic{width:26px;height:26px}
+.daily{padding:16px}
+.daily .row-gap{margin-top:10px}

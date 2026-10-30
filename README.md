@@ -104,3 +104,6 @@ Apple-style pass: neutral grouped surfaces (#f2f2f7 / true-black dark), SF syste
 
 ### v12
 Navy returns. Frosted floating tab bar with the liquid pill, soft tinted icon tiles, capsule buttons with light, glass segmented controls and sheets, staggered page entrances.
+
+### v13
+Nav pill is clipped inside the bar and uses a frame-rate independent spring. Home regrouped into hero, For you, Explore.
