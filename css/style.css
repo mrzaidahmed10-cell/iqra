@@ -982,3 +982,6 @@ details[open]>.tasks-b,details[open]>:not(summary){animation:fade .35s ease both
 .nav a.dot .ni::after{top:-3px;right:-5px}
 .view{padding-bottom:calc(env(safe-area-inset-bottom) + 100px)}
 .mini{bottom:calc(env(safe-area-inset-bottom) + 82px)}
+/* v16: tab bar shrinks while scrolling down, springs back at rest */
+.nav{transform:translateX(-50%) scale(var(--s,1));transform-origin:50% 100%;transition:transform .55s cubic-bezier(.3,1.35,.5,1),opacity .3s}
+.nav.shrunk{--s:.8;transform:translateX(-50%) translateY(2px) scale(.8);opacity:.92;transition:transform .35s cubic-bezier(.3,.9,.4,1),opacity .3s}
