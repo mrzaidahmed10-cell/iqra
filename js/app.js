@@ -78,7 +78,7 @@ const NAV = [['home', 'Home', 'home'], ['quran', 'Quran', 'book'], ['prayer', 'P
 async function boot() {
   document.body.classList.remove('authing'); applyTheme();
   app.innerHTML = `<header class="appbar" id="appbar"><div class="ab-l"></div><div class="ab-t" aria-hidden="true"></div><div class="ab-r"></div><button class="ab-nur" data-act="nur" aria-label="Ask Nur">${ic('sparkle', 20)}</button></header><div id="offline" class="offline" hidden role="status">You're offline. Reading and saved lessons still work.</div><main id="view" class="view"></main><div id="mini" class="mini" hidden></div>
-    <nav class="nav" aria-label="Main"><span class="nav-glass"></span><span class="nav-track"><span class="nav-pill"></span></span>${NAV.map(n => `<a href="#/${n[0]}" data-tab="${n[0]}"><span class="ni">${ic(n[2], 20)}</span><span class="nl">${n[1]}</span></a>`).join('')}</nav>`;
+    <nav class="nav" aria-label="Main"><span class="nav-glass"></span><span class="nav-track"><span class="nav-pill"></span></span>${NAV.map(n => `<a href="#/${n[0]}" data-tab="${n[0]}" aria-label="${n[1]}"><span class="ni">${ic(n[2], 28)}</span><span class="nl sr-only">${n[1]}</span></a>`).join('')}</nav>`;
   initNav(); renderMini(); const off = () => { const o = $('#offline'); if (o) o.hidden = navigator.onLine; }; window.addEventListener('online', off); window.addEventListener('offline', off); off();
   try { surahList = await getSurahList(); } catch { surahList = []; }
   window.__surahList = surahList;
