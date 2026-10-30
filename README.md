@@ -98,3 +98,6 @@ Speech-to-text hears words, not harakat. It can reliably catch skipped, swapped 
 
 ### v10
 Calmer tone: coins, XP bars, level titles, stars and +XP chips are gone from the UI (progress is tracked in minutes, ayahs and lessons; surah unlocks still follow your stage). Badges are now Milestones, Rewards is a free Appearance page, games moved to More. The mihrab hero returns on Home.
+
+### v11
+Apple-style pass: neutral grouped surfaces (#f2f2f7 / true-black dark), SF system type with large titles, hairline separators, translucent app and tab bars, iOS-style segmented controls, grouped lists for Quran/Path/More, tinted buttons, shadows only on floating layers. Bricolage font removed.
