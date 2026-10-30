@@ -904,7 +904,7 @@ input,select,textarea{background:var(--card2);box-shadow:inset 0 0 0 .5px var(--
 .search input,.search input:focus{background:none;box-shadow:none;outline:none}
 .card.lrow.plain,button.card.lrow.plain{background:var(--card)}
 .view.enter{animation:none}
-.view.enter>*{animation:rise .55s var(--ease) both}
+.view.enter>*{animation:rise .55s var(--ease) backwards}
 .view.enter>*:nth-child(2){animation-delay:.04s}.view.enter>*:nth-child(3){animation-delay:.08s}.view.enter>*:nth-child(4){animation-delay:.12s}.view.enter>*:nth-child(5){animation-delay:.16s}.view.enter>*:nth-child(n+6){animation-delay:.2s}
 a.card:active,button.card:active,.qa>*:active{transform:scale(.98)}
 .hhead .avatar{background:linear-gradient(160deg,color-mix(in srgb,var(--ac) 26%,transparent),color-mix(in srgb,var(--ac) 10%,transparent));box-shadow:inset 0 0 0 .5px color-mix(in srgb,var(--ac) 30%,transparent)}
@@ -939,3 +939,39 @@ input[type=range]{background:none!important;box-shadow:none!important}input[type
 .qa .ico .ic{width:26px;height:26px}
 .daily{padding:16px}
 .daily .row-gap{margin-top:10px}
+/* ===== v14: motion everywhere, no colored glows ===== */
+@keyframes grow{from{transform:scaleX(0)}}
+@keyframes drift{to{background-position:112px 56px}}
+@keyframes thumb{from{transform:scale(.9);opacity:.5}}
+@keyframes bounce{0%{transform:scale(.8)}55%{transform:scale(1.12)}100%{transform:none}}
+@keyframes sweep{from{clip-path:inset(0 100% 0 0)}to{clip-path:inset(0 0 0 0)}}
+/* remove glows */
+.btn.primary{box-shadow:inset 0 1px 0 rgba(255,255,255,.28)}
+.btn.danger{box-shadow:none}
+.pick.on{box-shadow:none}
+.a-prog{filter:none}
+body::before{opacity:.5}
+/* page-level: rows cascade in */
+.view.enter :is(.lrow,.hrow,.srow,.prow,.mrow,.lrow2,.qa>*,.st,.badge,.cell,.post,.shopi,.stat){animation:rise .5s var(--ease) backwards;animation-delay:calc(.1s + var(--i,0) * 26ms)}
+.view.enter .progress i{transform-origin:left center;animation:grow .9s var(--ease) both;animation-delay:.2s}
+.view.enter .hero2 .arch{animation:fade .8s ease both .1s}
+.view.enter .daily-ar,.view.enter .h2-ar{animation:fade .9s ease both .3s}
+.hero2::after{animation:drift 80s linear infinite}
+/* controls feel alive */
+.seg button.on,.seg.rdls a.on{animation:thumb .28s var(--ease)}
+.pick.on{animation:thumb .25s var(--ease)}
+.nav a.on .ni{animation:bounce .45s var(--ease)}
+.btn,.icon-btn,.pick,.seg button,.chip,.lrow,.hrow,.srow,.prow,.qa>*,.opt,.card{transition:transform .25s var(--ease),background .25s,opacity .25s,box-shadow .25s,color .25s}
+.hrow:active,.lrow:active,.srow:active,.prow:active{transform:scale(.99)}
+.opt:active:not(:disabled){transform:scale(.97)}
+.toast{transition:transform .5s cubic-bezier(.3,1.4,.5,1),opacity .3s}
+.sheet{transition:transform .5s cubic-bezier(.32,1.08,.5,1)}
+.sheet-wrap.out .sheet{transition-duration:.28s}
+.switch-row input[type=checkbox]{transition:background .25s}
+details>summary .ic:last-child{transition:transform .3s var(--ease)}
+details[open]>.tasks-b,details[open]>:not(summary){animation:fade .35s ease both}
+.ayah{transition:background .3s,transform .3s var(--ease)}
+.ayah.playing{animation:thumb .35s var(--ease)}
+.card[data-act]:active,a.card:active{transform:scale(.985)}
+.streak-t{animation:fade .6s ease both .3s}
+@media (prefers-reduced-motion:reduce){.hero2::after{animation:none}}

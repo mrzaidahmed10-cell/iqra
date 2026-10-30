@@ -107,3 +107,6 @@ Navy returns. Frosted floating tab bar with the liquid pill, soft tinted icon ti
 
 ### v13
 Nav pill is clipped inside the bar and uses a frame-rate independent spring. Home regrouped into hero, For you, Explore.
+
+### v14
+Motion pass: staggered row entrances, count-up numbers, growing progress bars, bouncing tab icon, sliding hero pattern, springier sheets/toasts. Colored glows removed.

@@ -158,6 +158,18 @@ document.addEventListener('click', e => {
 });
 bus.addEventListener('audio', e => { $$('.ayah.playing').forEach(x => x.classList.remove('playing')); if (e.detail) $$(`.ayah[data-g="${e.detail}"]`).forEach(x => { x.classList.add('playing'); x.scrollIntoView({ block: 'center', behavior: 'smooth' }); }); });
 
+
+// ---------- motion: stagger rows, count numbers up
+function animateIn(view) {
+  $$('.lrow,.hrow,.srow,.prow,.mrow,.lrow2,.qa>*,.st,.badge,.cell,.post,.shopi,.stat', view).forEach((el, i) => el.style.setProperty('--i', Math.min(i, 16)));
+  if (matchMedia('(prefers-reduced-motion:reduce)').matches) return;
+  $$('.st b,.stat b,.hero2 .mins', view).forEach(el => {
+    const n = el.firstChild && el.firstChild.nodeType === 3 ? el.firstChild : null, txt = n ? n.nodeValue : el.textContent, m = /^\d+$/.test(txt.trim()) ? +txt : NaN;
+    if (!n && !/^\d+$/.test(txt.trim())) return; if (isNaN(m) || m === 0) return;
+    const t0 = performance.now(), D = 700; const step = t => { const k = Math.min(1, (t - t0) / D), e = 1 - Math.pow(1 - k, 3); if (n) n.nodeValue = String(Math.round(m * e)); else el.textContent = String(Math.round(m * e)); if (k < 1) requestAnimationFrame(step); }; requestAnimationFrame(step);
+  });
+}
+
 // ---------- app bar: back link or wordmark on the left, Nur on the right, page title fades in on scroll
 function fillBar(view, a) {
   const bar = $('#appbar'); if (!bar) return; const L = $('.ab-l', bar), bk = view.querySelector('.back');
@@ -195,7 +207,7 @@ async function route(keep = false) {
   const fn = VIEWS[a] || viewHome; view.dataset.v = a;
   try {
     const out = await fn(b); if (tok !== rtok) return;
-    view.classList.remove('enter'); view.innerHTML = (['home', 'path', 'quran', 'listen', 'progress', 'more'].includes(a) ? EX.bannerHTML() : '') + out.html; if (!keep) { void view.offsetWidth; view.classList.add('enter'); } out.after && out.after();
+    view.classList.remove('enter'); view.innerHTML = (['home', 'path', 'quran', 'listen', 'progress', 'more'].includes(a) ? EX.bannerHTML() : '') + out.html; if (!keep) { void view.offsetWidth; view.classList.add('enter'); animateIn(view); } out.after && out.after();
     window.scrollTo(0, keep ? y : 0); fillBar(view, a);
   } catch (e) { if (tok === rtok) view.innerHTML = `<div class="card center"><h3>Couldn't load</h3><p class="muted">${getErr(e)}</p><p class="muted small">Check your connection, then retry.</p><button class="btn primary" data-act="retry">Retry</button></div>`; }
 }
