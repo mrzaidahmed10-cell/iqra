@@ -1,4 +1,5 @@
 // "More" pages: account, settings, rewards, fasting, hadith, advice, prayer, dhikr, alphabet, about.
+import { sliderHTML } from './slider.js';
 import {
   S, $, $$, esc, todayKey, levelOf, Auth, logout, updateAccount, changePassword, deleteAccount, save, sheet, closeSheet, ask, toast, feel, sfx, haptic,
   hijri, applyTheme, reward, checkBadges, setLevel, trackFor, alphabetDone, burst,
@@ -40,7 +41,7 @@ export function viewSettings() {
   return {
     html: `${back()}<h2>Settings</h2><section class="card form"><h3>Appearance</h3>${seg('mode', [['auto', 'Auto'], ['light', 'Light'], ['dark', 'Dark']])}
     <label>Accent<div class="swatches">${THEMES.filter(t => S.owned.themes.includes(t.id)).map(t => `<button class="sw-t ${s.theme === t.id ? 'on' : ''}" data-act="theme" data-id="${t.id}" style="--sh:${t.h}" aria-label="${t.name}"></button>`).join('')}<a class="sw-more" href="#/more/shop">${ic('plus', 16)}</a></div></label>
-    <label>Arabic text size <output id="fso">${s.fontSize}px</output><input type="range" min="22" max="48" value="${s.fontSize}" data-set="fontSize"></label><p class="ar preview" dir="rtl">بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ</p></section>
+    <label>Arabic text size <output id="fso">${s.fontSize}px</output>${sliderHTML('fs', { min: 22, max: 48, value: s.fontSize, label: 'Arabic text size' })}</label><p class="ar preview" dir="rtl">بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ</p></section>
     <section class="card form"><h3>Reading</h3>${tg('translation', 'English translation', 'Show meaning under each ayah')}${tg('translit', 'Transliteration', 'Latin letters to help reading')}
     <label>Reciter<select data-set="reciter">${RECITERS.map(r => `<option value="${r.id}" ${s.reciter === r.id ? 'selected' : ''}>${r.n}</option>`).join('')}</select></label>
     <label>Playback speed</label>${seg('rate', [[0.75, '0.75×'], [1, '1×'], [1.25, '1.25×']])}</section>
@@ -84,7 +85,7 @@ export function viewAdvice() {
 export function viewAbout() {
   return { html: `${back()}<h2>About Iqra</h2><section class="card"><h3>How it works</h3><p>Pick your level and Iqra builds a path: letters, vowels and reading first, or tajweed and memorization if you already read. Each lesson <b>teaches before it tests</b>, and your place is saved if you leave. Learn a surah in lessons of up to 20 ayahs, then recite it to be graded.</p></section>
     <section class="card"><h3>Recitation grading and Nur</h3><p>Your recitation is compared word by word with the mushaf and reviewed for pronunciation and tajweed. Nur is a chat coach you can ask anything. Both are practice partners: fine details like exact madd length are best confirmed by a teacher.</p></section>
-    <section class="card"><h3>Credits</h3><p class="muted small">Quran text, translation (Sahih International) and audio via alquran.cloud and the Islamic Network CDN. Word-by-word meanings via quran.com. Fonts: Amiri Quran, Bricolage Grotesque, Instrument Sans.</p></section>` };
+    <section class="card"><h3>Credits</h3><p class="muted small">Quran text, translation (Sahih International), audio and prayer times come from trusted third-party sources. The full list is in the <a href="privacy.html">Privacy policy</a> and <a href="terms.html">Terms</a>. Fonts: Amiri Quran and Instrument Sans.</p></section>` };
 }
 
 // ----- dhikr -----

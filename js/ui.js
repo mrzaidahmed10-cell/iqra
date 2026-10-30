@@ -6,7 +6,8 @@ import { TITLES } from './content.js';
 export const timers = [];
 export const clearTimers = () => { timers.forEach(clearInterval); timers.length = 0; };
 export const title = lv => TITLES[Math.min(TITLES.length - 1, Math.floor((lv - 1) / 5))];
-export const getErr = e => esc(e && e.message ? e.message : 'Something went wrong');
+// Show our own messages; hide raw engine errors like "Cannot read properties of undefined".
+export const getErr = e => { const m = e && e.message ? String(e.message) : ''; if (!m || /undefined|null|cannot|is not|unexpected|json|failed to fetch|networkerror|load failed|aborted|typeerror|referenceerror/i.test(m)) { if (m) console.warn(m); return 'Something went wrong while loading this.'; } return esc(m); };
 export const refresh = () => window.dispatchEvent(new Event('iqra-refresh'));
 export const val = id => ($('#' + id)?.value || '').trim();
 export const back = (to = '#/more', t = 'More') => `<a class="back" href="${to}">${ic('chevL', 18)}<span>${t}</span></a>`;

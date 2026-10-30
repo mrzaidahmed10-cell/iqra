@@ -15,6 +15,7 @@ import { viewPrayerTab, startAthan } from './prayer.js';
 import { openNur } from './nur.js';
 import { searchSurahs } from './search.js';
 import { openArcade } from './games.js';
+import { initSliders, setSlider } from './slider.js';
 import { back, ring, val, title, getErr, timers, clearTimers, refresh, lrow } from './ui.js';
 import * as P from './pages.js';
 import { runPlacement } from './placement.js';
@@ -155,10 +156,12 @@ function renderMini() {
   document.body.classList.add('has-mini'); m.hidden = false;
   m.innerHTML = `<button class="mp-play" data-mp="toggle" aria-label="${Player.playing ? 'Pause' : 'Play'}">${Player.loading ? '<span class="spinner sm"></span>' : ic(Player.playing ? 'pause' : 'play', 22)}</button>
     <button class="mp-info" data-mp="open"><span class="mp-eq ${Player.playing ? 'on' : ''}"><i></i><i></i><i></i></span><span class="mp-t"><b>${esc(it.label || 'Quran')}</b><small>${esc(it.sub || '')}</small></span></button>
-    <button class="mp-b" data-mp="prev" aria-label="Previous">${ic('prev', 18)}</button><button class="mp-b" data-mp="next" aria-label="Next" ${Player.i + 1 >= Player.q.length ? 'disabled' : ''}>${ic('next', 18)}</button><button class="mp-b" data-mp="stop" aria-label="Close player">${ic('x', 18)}</button><i class="mp-bar"><b id="mpb"></b></i>`;
+    <button class="mp-b" data-mp="prev" aria-label="Previous">${ic('prev', 18)}</button><button class="mp-b" data-mp="next" aria-label="Next" ${Player.i + 1 >= Player.q.length ? 'disabled' : ''}>${ic('next', 18)}</button><button class="mp-b" data-mp="stop" aria-label="Close player">${ic('x', 18)}</button><div class="sl mp-bar" role="slider" tabindex="0" aria-label="Seek" aria-valuemin="0" aria-valuemax="1000" aria-valuenow="0" data-min="0" data-max="1000" data-step="1" data-v="0" style="--p:0"><i class="sl-t"><b class="sl-f" id="mpb"></b></i><span class="sl-h"></span></div>`;
 }
 bus.addEventListener('player', () => { renderMini(); const l = $('#llist'); if (l) l.innerHTML = listenRows(); });
-bus.addEventListener('ptime', e => { const b = $('#mpb'); if (b && e.detail.d) b.style.width = (e.detail.t / e.detail.d * 100) + '%'; });
+let scrubbing = false;
+function scrub(f, final) { scrubbing = !final; seekPlayer(f); if (final) setTimeout(() => { scrubbing = false; }, 150); }
+bus.addEventListener('ptime', e => { const m = $('.mp-bar'); if (m && e.detail.d && !scrubbing) { const f = e.detail.t / e.detail.d; setSlider(m, f * 1000); } });
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-mp]'); if (!b) return; const k = b.dataset.mp; feel('tick', 'tick');
   if (k === 'toggle') togglePlayer(); else if (k === 'next') nextAyah(); else if (k === 'prev') prevAyah(); else if (k === 'stop') stopPlayer();
@@ -479,7 +482,11 @@ document.addEventListener('change', e => { if (e.target.dataset && 'agree' in e.
 document.addEventListener('input', e => {
   if (e.target.id === 'lsearch') { lSearch = e.target.value; $('#llist').innerHTML = listenRows(); }
   if (e.target.id === 'qsearch') { qSearch = e.target.value; $('#qlist').innerHTML = listHTML(); }
-  if (e.target.dataset.set === 'fontSize') { S.settings.fontSize = +e.target.value; $('#fso').textContent = e.target.value + 'px'; applyTheme(); }
+});
+initSliders();
+document.addEventListener('slide', e => {
+  if (e.target.id === 'fs') { S.settings.fontSize = e.detail.value; const o = $('#fso'); if (o) o.textContent = e.detail.value + 'px'; applyTheme(); if (e.detail.final) save(); }
+  if (e.target.classList.contains('mp-bar')) { scrub(e.detail.value / 1000, e.detail.final); }
 });
 document.addEventListener('change', e => {
   const k = e.target.dataset.set; if (!k) return; const el = e.target;

@@ -110,3 +110,6 @@ Nav pill is clipped inside the bar and uses a frame-rate independent spring. Hom
 
 ### v14
 Motion pass: staggered row entrances, count-up numbers, growing progress bars, bouncing tab icon, sliding hero pattern, springier sheets/toasts. Colored glows removed.
+
+### v17
+Prayer tab redesigned (hero with next prayer + daily progress segments, one clean list, weekly strip). Real draggable sliders (text size, player seek). Third-party service names only appear in the Privacy policy and Terms. Friendlier load errors. Sweep script covers all routes.

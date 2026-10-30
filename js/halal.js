@@ -1,4 +1,4 @@
-// Halal scanner: scan or type a barcode, look the product up on Open Food Facts, and read its ingredients against a rule list.
+// Halal scanner: scan or type a barcode, look the product up, and read its ingredients against a rule list.
 // The verdict is guidance only. It is not a fatwa and not a certification.
 import { $, esc, toast, feel, haptic } from './core.js';
 import { ic } from './icons.js';
@@ -79,7 +79,7 @@ function showResult(p, v) {
     ${v.hits.length ? `<h4>What I found</h4><ul class="hl-hits">${v.hits.map(h => `<li class="${h.k}"><b>${esc(h.n)}</b><small>${esc(h.why)}</small></li>`).join('')}</ul>` : ''}
     ${p.ingredients ? `<h4>Ingredients</h4><p class="hl-ing">${hl(p.ingredients, v.hits)}</p>` : ''}
     <div class="row-gap"><button class="btn grow" data-act="hl-ask">${ic('message', 16)} Ask Nur</button><button class="btn primary grow" data-act="hl-scan">${ic('scan', 16)} Scan another</button></div>
-    <p class="muted small center">Ingredient data comes from Open Food Facts and can be incomplete, so this can make mistakes. When in doubt, leave it.</p></section>`;
+    <p class="muted small center">Ingredient data comes from a public product database and can be incomplete, so this can make mistakes. When in doubt, leave it.</p></section>`;
   out.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 async function check(code) {
@@ -88,7 +88,7 @@ async function check(code) {
   if (out) out.innerHTML = `<section class="card"><div class="working"><div class="spinner"></div><p class="muted">Looking up ${esc(code)}…</p></div></section>`;
   try {
     const p = await lookup(code);
-    if (!p) { out.innerHTML = `<section class="card"><h3>Not found</h3><p class="muted">Barcode ${esc(code)} is not in Open Food Facts yet. Paste the ingredients from the package below to check them.</p></section>`; feel('bad'); return; }
+    if (!p) { out.innerHTML = `<section class="card"><h3>Not found</h3><p class="muted">Barcode ${esc(code)} is not in the product database yet. Paste the ingredients from the package below to check them.</p></section>`; feel('bad'); return; }
     const v = analyze(p); pushRecent({ code, name: p.name, verdict: v.verdict, at: Date.now() }); feel(v.verdict === 'haram' ? 'bad' : v.verdict === 'halal' ? 'right' : 'tap'); haptic('tick'); showResult(p, v); renderRecents();
   } catch { if (out) out.innerHTML = `<section class="card"><h3>Could not look that up</h3><p class="muted">Check your connection and try again, or paste the ingredients below.</p></section>`; }
 }
