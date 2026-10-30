@@ -101,3 +101,6 @@ Calmer tone: coins, XP bars, level titles, stars and +XP chips are gone from the
 
 ### v11
 Apple-style pass: neutral grouped surfaces (#f2f2f7 / true-black dark), SF system type with large titles, hairline separators, translucent app and tab bars, iOS-style segmented controls, grouped lists for Quran/Path/More, tinted buttons, shadows only on floating layers. Bricolage font removed.
+
+### v12
+Navy returns. Frosted floating tab bar with the liquid pill, soft tinted icon tiles, capsule buttons with light, glass segmented controls and sheets, staggered page entrances.
