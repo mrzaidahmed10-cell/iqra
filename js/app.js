@@ -1,4 +1,5 @@
 // Iqra: shell, routing, home, Quran, progress, glass navigation and the mini player.
+import { applyAppIcon } from './appicon.js';
 import {
   S, $, $$, esc, toAr, api, logout, todayKey, levelOf, xpFor, streakNow, sr, statusOf, reqLevel, unlocked, day, dayMinutes, questsNow, BADGES, Auth, probe, restore, register, login,
   save, getSurahList, getSurah, getAyahByGlobal, playQueue, togglePlayer, nextAyah, prevAyah, stopPlayer, seekPlayer, Player, bus, toast, sheet, closeSheet, feel, haptic, sfx,
@@ -20,7 +21,7 @@ import { back, ring, val, title, getErr, timers, clearTimers, refresh, lrow } fr
 import * as P from './pages.js';
 import { runPlacement } from './placement.js';
 
-let surahList = [], rtok = 0, qFilter = 'all', qSearch = '', chartMetric = 'minutes', progTab = 'overview', lFilter = 'all', lSearch = '';
+let surahList = [], rtok = 0, qFilter = 'all', qSearch = '', chartMetric = 'minutes', progTab = 'overview', lFilter = 'all', lSearch = '', qSort = 'order';
 const app = $('#app');
 
 // =====================================================================
@@ -219,6 +220,7 @@ async function route(keep = false) {
   try {
     const out = await fn(b); if (tok !== rtok) return;
     view.classList.remove('enter'); view.innerHTML = (['home', 'path', 'quran', 'listen', 'progress', 'more'].includes(a) ? EX.bannerHTML() : '') + out.html; if (!keep) { void view.offsetWidth; view.classList.add('enter'); animateIn(view); } out.after && out.after();
+    const AS = { home: 'السلام عليكم', prayer: 'الصلاة', progress: 'التقدم', more: 'المزيد', listen: 'استمع' }[a], h1 = $('header.top h1', view); if (AS && h1 && !$('.ar-sub', view)) h1.insertAdjacentHTML('afterend', `<span class="ar-sub">${AS}</span>`);
     window.scrollTo(0, keep ? y : 0); fillBar(view, a);
   } catch (e) { if (tok === rtok) view.innerHTML = `<div class="card center"><h3>Couldn't load</h3><p class="muted">${getErr(e)}</p><p class="muted small">Check your connection, then retry.</p><button class="btn primary" data-act="retry">Retry</button></div>`; }
 }
@@ -307,13 +309,18 @@ async function viewPath() {
 // Quran list and surah page
 // =====================================================================
 function surahRow(s) {
-  const st = statusOf(s.n), lock = !unlocked(s), r = S.surahs[s.n], pc = r ? Math.round(r.learned.length / s.count * 100) : 0;
-  return `<a class="srow ${st} ${lock ? 'locked' : ''}" href="#/surah/${s.n}"><span class="snum"><b>${s.n}</b></span><div class="sinfo"><b>${esc(s.en)}</b><small>${esc(s.tr)} · ${s.count} ayahs</small>${st === 'learning' ? `<div class="progress thin"><i style="width:${pc}%"></i></div>` : ''}</div><div class="sright"><span class="ar sname">${esc(s.ar)}</span>${lock ? `<small class="lockt">${ic('lock', 12)} Lv ${reqLevel(s.count)}</small>` : `<i class="stat">${stIcon(st)}</i>`}</div></a>`;
+  const st = statusOf(s.n), off = !unlocked(s), r = S.surahs[s.n], pc = r ? Math.round(r.learned.length / s.count * 100) : 0;
+  return `<a class="srow ${st} ${off ? 'adv' : ''}" href="#/surah/${s.n}"><span class="snum"><b>${s.n}</b></span><div class="sinfo"><b>${esc(s.en)}</b><small>${esc(s.tr)} · ${s.count} ayahs · ${/medin/i.test(s.type) ? 'Medinan' : 'Meccan'}</small>${st === 'learning' ? `<div class="progress thin"><i style="width:${pc}%"></i></div>` : ''}${off ? '<span class="advt">Not recommended for your level yet</span>' : ''}</div><div class="sright"><span class="ar sname">${esc(s.ar)}</span>${st !== 'new' ? `<i class="stat">${stIcon(st)}</i>` : ''}</div></a>`;
 }
 function filteredSurahs() {
   let l = surahList; const q = qSearch.trim();
-  if (qFilter === 'path') { const ns = planItems().filter(i => i.k === 'surah').map(i => i.n); l = ns.map(n => surahList[n - 1]).filter(Boolean); } else if (qFilter !== 'all') l = l.filter(s => statusOf(s.n) === qFilter);
+  if (qFilter === 'path') { const ns = planItems().filter(i => i.k === 'surah').map(i => i.n); l = ns.map(n => surahList[n - 1]).filter(Boolean); }
+  else if (qFilter === 'rec') l = l.filter(s => unlocked(s) && !['learned', 'mastered'].includes(statusOf(s.n)));
+  else if (qFilter === 'short') l = l.filter(s => s.count <= 25);
+  else if (qFilter === 'meccan') l = l.filter(s => /mecc/i.test(s.type)); else if (qFilter === 'medinan') l = l.filter(s => /medin/i.test(s.type));
+  else if (qFilter !== 'all') l = l.filter(s => statusOf(s.n) === qFilter);
   if (q) l = searchSurahs(l, q);
+  if (qSort === 'short') l = [...l].sort((x, y) => x.count - y.count || x.n - y.n); else if (qSort === 'fit') l = [...l].sort((x, y) => (unlocked(y) ? 1 : 0) - (unlocked(x) ? 1 : 0) || x.n - y.n);
   return l;
 }
 const listHTML = () => filteredSurahs().map(surahRow).join('') || '<p class="muted center">Nothing here yet.</p>';
@@ -345,9 +352,16 @@ async function viewListen() {
 }
 async function viewQuran() {
   if (!surahList.length) surahList = await getSurahList();
-  const F = [['all', 'All'], ['path', 'My path'], ['learning', 'Learning'], ['learned', 'Learned'], ['mastered', 'Mastered']];
-  return { html: `<header class="top"><h1>Quran</h1><span class="chip">${learnedTotal()} / ${TOTAL_AYAHS} ayahs</span></header>${rlSeg('read')}
+  const F = [['all', 'All'], ['rec', 'For you'], ['path', 'My path'], ['learning', 'Learning'], ['learned', 'Learned'], ['mastered', 'Mastered'], ['short', 'Short'], ['meccan', 'Meccan'], ['medinan', 'Medinan']], SO = [['order', 'Mushaf order'], ['short', 'Shortest first'], ['fit', 'Best fit first']];
+  const lt = learnedTotal(), done = surahList.filter(x => ['learned', 'mastered'].includes(statusOf(x.n))).length, p = lt / TOTAL_AYAHS;
+  const lr = S.lastRead && surahList[S.lastRead - 1], it = nextItem(surahList), nx = it && it.k === 'surah' ? surahList[it.n - 1] : null, cont = lr || nx;
+  const pick = surahList.filter(x => unlocked(x) && x.count <= 40 && !['learned', 'mastered'].includes(statusOf(x.n))), tp = pick.length ? pick[Math.floor(Date.now() / 864e5) % pick.length] : null;
+  return { html: `<header class="top"><h1>Quran</h1><span class="ar-sub">القرآن الكريم</span></header>${rlSeg('read')}
+    <section class="card qhero"><div class="qh-t"><div><small class="kick">Your Quran</small><h2>${lt.toLocaleString()}<span> / ${TOTAL_AYAHS.toLocaleString()} ayahs</span></h2><p class="muted">${done} of 114 surahs learned</p></div><div class="qh-ar" aria-hidden="true">ٱقْرَأْ</div></div><div class="progress"><i style="width:${Math.max(lt ? 1 : 0, p * 100)}%"></i></div></section>
+    ${cont ? `<a class="card lrow qcont" href="#/surah/${cont.n}"><span class="snum"><b>${cont.n}</b></span><div class="grow"><small class="muted">${lr ? 'Continue where you were' : 'Up next on your path'}</small><b>${esc(cont.en)}</b><small class="muted">${esc(cont.tr)} · ${cont.count} ayahs</small></div><span class="ar sname">${esc(cont.ar)}</span></a>` : ''}
+    <div class="qtools"><button class="card qtool" data-act="q-surprise">${ic('compass', 20)}<span><b>Surprise me</b><small class="muted">A surah that fits your level</small></span></button>${tp ? `<a class="card qtool" href="#/surah/${tp.n}">${ic('star', 20)}<span><b>Today's pick</b><small class="muted">${esc(tp.en)} · ${tp.count} ayahs</small></span></a>` : ''}</div>
     <label class="search">${ic('search', 18)}<input id="qsearch" placeholder="Search 114 surahs" value="${esc(qSearch)}" type="search" aria-label="Search surahs"></label><div class="chips-row scroll">${F.map(f => `<button class="pick ${qFilter === f[0] ? 'on' : ''}" data-act="filter" data-f="${f[0]}">${f[1]}</button>`).join('')}</div>
+    <div class="seg qsort">${SO.map(f => `<button class="${qSort === f[0] ? 'on' : ''}" data-act="qsort" data-v="${f[0]}">${f[1]}</button>`).join('')}</div>
     <div class="slist" id="qlist">${listHTML()}</div>` };
 }
 const ayahHTML = (a, learned) => `<article class="ayah ${learned ? 'learned' : ''}" data-g="${a.g}"><div class="ayah-top"><span class="num">${a.n}</span><button class="icon-btn sm" data-act="play-from" data-a="${a.n}" aria-label="Play from ayah ${a.n}">${ic('play', 16)}</button>${learned ? `<span class="chk">${ic('check', 14)}</span>` : ''}</div><p class="ar" dir="rtl">${esc(a.ar)}</p>${S.settings.translit ? `<p class="tl">${esc(a.tr)}</p>` : ''}${S.settings.translation ? `<p class="en">${esc(a.en)}</p>` : ''}</article>`;
@@ -356,8 +370,9 @@ async function viewSurah(n) {
   const s = surahList[n - 1]; if (!s) return { html: `${back('#/quran', 'Quran')}<p class="muted">Surah not found.</p>` };
   const ayahs = await getSurah(n), r = S.surahs[n], st = statusOf(n), l = r ? r.learned.length : 0, lock = !unlocked(s), ses = sessionInfo();
   const resume = ses && ses.kind === 'surah' && ses.n === n;
-  const act = lock ? `<div class="banner">${ic('lock', 16)} Opens at <b>stage ${reqLevel(s.count)}</b> as you keep learning (you're at stage ${levelOf(S.xp)}). Or turn on <a href="#/more/settings">Explorer mode</a>.</div>`
-    : `<div class="col-gap">${resume ? `<button class="btn primary big" data-act="resume">Resume lesson · ${ses.pct}%</button>` : st === 'learned' || st === 'mastered' ? `<button class="btn primary big" data-act="recite-surah" data-n="${n}" data-m="${st === 'learned' ? 1 : ''}">${ic('mic', 18)} ${st === 'mastered' ? 'Recite again' : 'Recite for mastery'}</button>` : `<button class="btn primary big" data-act="learn" data-n="${n}">${l ? 'Continue learning' : 'Start learning'}</button>`}
+  const note = lock ? `<div class="banner soft">${ic('info', 16)} <span>Not recommended for your level yet. It is longer than most surahs at stage ${levelOf(S.xp)}, so it may feel heavy. You can still start it, or build up with shorter surahs first.</span></div>` : '';
+  S.lastRead = n;
+  const act = note + `<div class="col-gap">${resume ? `<button class="btn primary big" data-act="resume">Resume lesson · ${ses.pct}%</button>` : st === 'learned' || st === 'mastered' ? `<button class="btn primary big" data-act="recite-surah" data-n="${n}" data-m="${st === 'learned' ? 1 : ''}">${ic('mic', 18)} ${st === 'mastered' ? 'Recite again' : 'Recite for mastery'}</button>` : `<button class="btn primary big" data-act="learn" data-n="${n}">${l ? 'Continue learning' : 'Start learning'}</button>`}
       <div class="row-gap"><button class="btn grow" data-act="recite-surah" data-n="${n}">${ic('mic', 16)} Practice</button><button class="btn grow" data-act="play-surah" data-n="${n}">${ic('headphones', 16)} Listen</button><button class="btn grow" data-act="nur-surah" data-n="${n}">${ic('message', 16)} Nur</button></div></div>`;
   return {
     html: `${back('#/quran', 'Quran')}<section class="card surah-head ${st}"><div class="ar big-name">${esc(s.ar)}</div><h2>${esc(s.en)}</h2><p class="muted">${esc(s.tr)} · ${esc(s.type)} · ${s.count} ayahs</p>
@@ -432,6 +447,8 @@ const ACT = {
   'weak-nur': () => { closeSheet(); setTimeout(() => openNur({ ask: 'Give me practical tips for the words I keep missing.', extra: 'Words the student keeps missing: ' + weakSummary() }), 220); },
   'nur-surah': t => { const s = surahList[+t.dataset.n - 1]; openNur({ ask: `Give me a short overview of Surah ${s.en}: its theme and one tip for learning it.`, extra: `Looking at Surah ${s.en} (${s.count} ayahs)` }); },
   filter: t => { qFilter = t.dataset.f; refresh(); },
+  qsort: t => { qSort = t.dataset.v; refresh(); },
+  'q-surprise': () => { const c = surahList.filter(x => unlocked(x) && !['mastered'].includes(statusOf(x.n))); if (c.length) { feel('tap'); location.hash = '#/surah/' + c[Math.floor(Math.random() * c.length)].n; } },
   metric: t => { chartMetric = t.dataset.m; refresh(); },
   ptab: t => { progTab = t.dataset.v; refresh(); },
   resume: () => resumeSession(),
@@ -447,7 +464,7 @@ const ACT = {
   'listen-sleep': t => { const m = +t.dataset.v; setSleep(m); $$('[data-act=listen-sleep]').forEach(b => b.classList.toggle('on', b === t)); toast(m ? `Sleep timer: ${m} min` : 'Sleep timer off', 'moon'); },
   'reciter-pick': () => { const el = sheet(`<h3>Choose a reciter</h3><div class="opts col">${RECITERS.map(r => `<button class="opt ${S.settings.reciter === r.id ? 'right' : ''}" data-r="${r.id}"><span>${esc(r.n)}</span>${S.settings.reciter === r.id ? ic('check', 18) : ''}</button>`).join('')}</div>`); el.addEventListener('click', e => { const b = e.target.closest('[data-r]'); if (!b) return; S.settings.reciter = b.dataset.r; save(); closeSheet(); refresh(); }); },
   'play-from': t => { const n = +location.hash.split('/')[2]; playQueue(surahItems(n, surahList), Math.max(0, +t.dataset.a - 1), { cont: n }); },
-  learn: async t => { const n = +t.dataset.n, s = surahList[n - 1]; if (!unlocked(s)) return toast(`Reach level ${reqLevel(s.count)} to unlock`, 'lock'); try { startSurah(s, await getSurah(n)); } catch { toast('Could not load the surah. Check your connection.', 'info'); } },
+  learn: async t => { const n = +t.dataset.n, s = surahList[n - 1]; try { startSurah(s, await getSurah(n)); } catch { toast('Could not load the surah. Check your connection.', 'info'); } },
   'start-next': async () => { const it = nextItem(surahList); if (!it) return; if (it.k === 'lesson') startLesson(it.id); else ACT.learn({ dataset: { n: it.n } }); },
   'recite-surah': async t => { const n = +t.dataset.n; try { const ays = await getSurah(n), s = surahList[n - 1]; if (t.dataset.m) openRecite(s, ays, { from: 1, to: Math.min(ays.length, 20), mastery: true }); else openRecite(s, ays); } catch { toast('Could not load the surah.', 'info'); } },
   'recite-pick': () => {
@@ -511,7 +528,7 @@ let lastCheck = 0;
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && Auth.token && Date.now() - lastCheck > 60000) { lastCheck = Date.now(); api('me').catch(() => {}); } });
 
 (async function init() {
-  applyTheme(); await probe();
+  applyTheme(); applyAppIcon(); await probe();
   const ok = await restore() && S.profile, note = (() => { try { const n = localStorage.getItem('iqra_notice'); localStorage.removeItem('iqra_notice'); return n; } catch { return ''; } })();
   if (ok) { boot(); let bn = null; try { bn = JSON.parse(localStorage.getItem('iqra_ban')); } catch { /* none */ } if (bn && !$('.ban')) { showBan(bn); if (Auth.token) api('me').then(() => { try { localStorage.removeItem('iqra_ban'); } catch { /* ignore */ } $('.ban')?.remove(); document.body.classList.remove('noscroll'); }).catch(() => {}); } } else { step = 'welcome'; renderAuth(); }
   if (note) setTimeout(() => toast(note, 'info'), 400);

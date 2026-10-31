@@ -9,6 +9,7 @@ import { HADITH, ADVICE, DHIKR, LETTERS, THEMES, AVATARS, FAST_TYPES, LEVELS, TR
 import { UNITS } from './curriculum.js';
 import { runPlacement } from './placement.js';
 import { startLesson } from './lesson.js';
+import { APP_ICONS, applyAppIcon } from './appicon.js';
 import { back, ring, val, timers, refresh, clearTimers } from './ui.js';
 
 let shopTab = 'themes', fastMonth = new Date();
@@ -41,6 +42,7 @@ export function viewSettings() {
   return {
     html: `${back()}<h2>Settings</h2><section class="card form"><h3>Appearance</h3>${seg('mode', [['auto', 'Auto'], ['light', 'Light'], ['dark', 'Dark']])}
     <label>Accent<div class="swatches">${THEMES.filter(t => S.owned.themes.includes(t.id)).map(t => `<button class="sw-t ${s.theme === t.id ? 'on' : ''}" data-act="theme" data-id="${t.id}" style="--sh:${t.h}" aria-label="${t.name}"></button>`).join('')}<a class="sw-more" href="#/more/shop">${ic('plus', 16)}</a></div></label>
+    <button class="btn" data-act="open-icons">${ic('dome', 18)} Change app icon</button>
     <label>Arabic text size <output id="fso">${s.fontSize}px</output>${sliderHTML('fs', { min: 22, max: 48, value: s.fontSize, label: 'Arabic text size' })}</label><p class="ar preview" dir="rtl">بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ</p></section>
     <section class="card form"><h3>Reading</h3>${tg('translation', 'English translation', 'Show meaning under each ayah')}${tg('translit', 'Transliteration', 'Latin letters to help reading')}
     <label>Reciter<select data-set="reciter">${RECITERS.map(r => `<option value="${r.id}" ${s.reciter === r.id ? 'selected' : ''}>${r.n}</option>`).join('')}</select></label>
@@ -49,11 +51,18 @@ export function viewSettings() {
     <section class="card form"><h3>Feel</h3>${tg('sound', 'Sounds', 'Soft tones for answers and navigation')}${tg('haptics', 'Haptics', 'Gentle vibration on supported phones')}${tg('openAll', 'Explorer mode', 'Unlock every surah regardless of level')}</section>`,
   };
 }
+function viewIcons() {
+  const cur = S.settings.appIcon || 'mihrab';
+  return { html: `${back()}<header class="top"><h2>Appearance</h2></header><div class="seg" data-tabs><button data-act="shop-tab" data-t="themes">Accent</button><button data-act="shop-tab" data-t="avatars">Avatar</button><button class="on" data-act="shop-tab" data-t="icons">App icon</button></div>
+    <p class="muted">Choose how Iqra looks on your home screen. Your browser tab changes right away. To change the icon on your phone, remove Iqra from the Home Screen and add it again.</p>
+    <div class="icongrid">${APP_ICONS.map(i => `<button class="icopick ${cur === i.id ? 'eq' : ''}" data-act="set-icon" data-id="${i.id}" aria-pressed="${cur === i.id}"><span class="apic">${i.svg}</span><b>${i.n}</b></button>`).join('')}</div>` };
+}
 export function viewShop() {
+  if (shopTab === 'icons') return viewIcons();
   const items = shopTab === 'themes' ? THEMES : AVATARS, cur = shopTab === 'themes' ? S.settings.theme : S.settings.avatar;
   const card = it => { const eq = cur === it.id;
     return `<button class="shopi ${eq ? 'eq' : ''}" data-act="equip" data-id="${esc(it.id)}" aria-pressed="${eq}"><div class="prev">${shopTab === 'themes' ? `<i class="sw-t big" style="--sh:${it.h}"></i>` : ic(it.id, 30)}</div><b>${shopTab === 'themes' ? it.name : ''}</b>${eq ? `<small class="muted">${ic('check', 14)} In use</small>` : ''}</button>`; };
-  return { html: `${back()}<header class="top"><h2>Appearance</h2></header><p class="muted">Pick the accent color and avatar that feel right to you.</p><div class="seg" data-tabs><button class="${shopTab === 'themes' ? 'on' : ''}" data-act="shop-tab" data-t="themes">Accent</button><button class="${shopTab === 'avatars' ? 'on' : ''}" data-act="shop-tab" data-t="avatars">Avatar</button></div><div class="shopgrid">${items.map(card).join('')}</div>` };
+  return { html: `${back()}<header class="top"><h2>Appearance</h2></header><p class="muted">Pick the accent color and avatar that feel right to you.</p><div class="seg" data-tabs><button class="${shopTab === 'themes' ? 'on' : ''}" data-act="shop-tab" data-t="themes">Accent</button><button class="${shopTab === 'avatars' ? 'on' : ''}" data-act="shop-tab" data-t="avatars">Avatar</button><button data-act="shop-tab" data-t="icons">App icon</button></div><div class="shopgrid">${items.map(card).join('')}</div>` };
 }
 
 // ----- fasting -----
@@ -130,6 +139,8 @@ export const PAGE_ACT = {
   export: () => download('iqra-progress.json', JSON.stringify({ ...S }, null, 2)),
   logout: async () => { if (!(await ask({ title: 'Sign out?', ok: 'Sign out' }))) return; await logout(); location.hash = ''; resetAuthFlow.fn && resetAuthFlow.fn('login'); },
   'delete-acct': async () => { const pw = await ask({ title: 'Delete your account?', body: 'This permanently deletes your account and progress. Enter your password to confirm.', input: 'password', ok: 'Delete', danger: true }); if (!pw) return; try { await deleteAccount(pw); location.hash = ''; resetAuthFlow.fn && resetAuthFlow.fn('welcome'); } catch (e) { toast(e.message, 'info'); } },
+  'set-icon': t => { S.settings.appIcon = t.dataset.id; save(); applyAppIcon(); feel('tap'); refresh(); },
+  'open-icons': () => { shopTab = 'icons'; location.hash = '#/more/shop'; },
   'shop-tab': t => { shopTab = t.dataset.t; refresh(); },
   buy: t => { const it = [...THEMES, ...AVATARS].find(x => x.id === t.dataset.id); if (!it || S.coins < it.cost || levelOf(S.xp) < it.lvl) return; S.coins -= it.cost; (shopTab === 'themes' ? S.owned.themes : S.owned.avatars).push(it.id); save(); feel('ok'); toast('Unlocked', 'gem'); PAGE_ACT.equip(t); },
   equip: t => { if (shopTab === 'themes') { S.settings.theme = t.dataset.id; applyTheme(); } else S.settings.avatar = t.dataset.id; save(); feel('tap'); refresh(); },

@@ -1048,3 +1048,43 @@ details[open]>.tasks-b,details[open]>:not(summary){animation:fade .35s ease both
 .p-n b{white-space:nowrap}.p-n em{flex:none}
 .p-n{min-width:0}.p-n small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 @media (max-width:350px){.p-n em{display:none}.p-name{font-size:2rem}}
+
+/* ===== v18: Quranic ornament, Quran tab, app icons ===== */
+:root{--tile:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Cg fill='none' stroke='%23000' stroke-width='1'%3E%3Crect x='11' y='11' width='26' height='26'/%3E%3Crect x='11' y='11' width='26' height='26' transform='rotate(45 24 24)'/%3E%3Ccircle cx='24' cy='24' r='3.5'/%3E%3C/g%3E%3Cg fill='%23000'%3E%3Ccircle cx='0' cy='0' r='2'/%3E%3Ccircle cx='48' cy='0' r='2'/%3E%3Ccircle cx='0' cy='48' r='2'/%3E%3Ccircle cx='48' cy='48' r='2'/%3E%3C/g%3E%3C/svg%3E")}
+body::before{content:"";position:fixed;left:0;right:0;top:0;height:380px;z-index:-1;pointer-events:none;background:var(--gold);opacity:.09;-webkit-mask:var(--tile) 0 0/48px 48px,linear-gradient(#000,transparent);-webkit-mask-composite:source-in;mask:var(--tile) 0 0/48px 48px,linear-gradient(#000,transparent);mask-composite:intersect}
+.hero2,.qhero,.surah-head,.card.up{position:relative;overflow:hidden;isolation:isolate}
+.hero2::before,.qhero::before,.surah-head::before,.card.up::before{content:"";position:absolute;right:-30px;top:-30px;width:210px;height:210px;z-index:-1;background:var(--gold);opacity:.14;-webkit-mask:var(--tile) 0 0/42px 42px,radial-gradient(circle at 70% 30%,#000,transparent 70%);-webkit-mask-composite:source-in;mask:var(--tile) 0 0/42px 42px,radial-gradient(circle at 70% 30%,#000,transparent 70%);mask-composite:intersect;pointer-events:none}
+.ar-sub{display:block;font-family:'Amiri Quran',serif;font-size:1.45rem;line-height:1.6;color:var(--gold);margin-top:2px;letter-spacing:0}
+.top{flex-wrap:wrap}.top .ar-sub{flex-basis:100%;order:3}
+.sec::before{content:"۞";color:var(--gold);margin-inline-end:8px;font-family:'Amiri Quran',serif}
+/* medallion numbers: an eight-point star, like the verse markers in a mushaf */
+.snum,.ayah-top .num{position:relative;display:grid;place-items:center;border-radius:0;background:transparent!important;border:0;width:42px;height:42px;min-width:42px;padding:0;z-index:0;color:var(--gold)!important}
+.snum::before,.snum::after,.ayah-top .num::before,.ayah-top .num::after{content:"";position:absolute;inset:7px;border-radius:5px;z-index:-1;background:var(--gold-soft);border:1.5px solid color-mix(in srgb,var(--gold) 55%,transparent)}
+.snum::after,.ayah-top .num::after{transform:rotate(45deg)}
+.srow.learning .snum{color:var(--ac)!important}.srow.learned .snum,.ayah.learned .num{color:var(--good)!important}.srow.mastered .snum{color:var(--gold)!important}
+.srow.learned .snum::before,.srow.learned .snum::after,.ayah.learned .num::before,.ayah.learned .num::after{background:color-mix(in srgb,var(--good) 16%,transparent);border-color:color-mix(in srgb,var(--good) 55%,transparent)}
+.ayah-top .num{width:38px;height:38px;min-width:38px;font-size:.78rem}.ayah-top .num::before,.ayah-top .num::after{inset:6px}
+.sname{font-family:'Amiri Quran',serif;font-size:1.35rem;color:var(--ink)}
+.bismillah{position:relative;font-size:1.9rem;margin:22px 0 8px}
+.bismillah::before,.bismillah::after{content:"";display:block;height:1px;margin:6px auto;width:72%;background:linear-gradient(90deg,transparent,var(--gold),transparent);opacity:.7}
+.surah-head .big-name{font-family:'Amiri Quran',serif;color:var(--gold)}
+.banner.soft{display:flex;gap:10px;align-items:flex-start;text-align:left;font-size:.9rem;line-height:1.4;margin-bottom:12px}.banner.soft .ic{flex:none;margin-top:2px}
+/* Quran tab */
+.qhero{padding:18px}.qhero .qh-t{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:14px}
+.qhero h2{font-size:1.9rem;letter-spacing:-.03em;line-height:1.1}.qhero h2 span{font-size:.95rem;font-weight:500;color:var(--mute);letter-spacing:0}
+.qh-ar{font-size:3.2rem;line-height:1;color:var(--gold)}
+.qcont{margin-top:10px;gap:12px}.qcont .grow b{display:block}
+.qtools{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0}
+.qtool{display:flex;gap:10px;align-items:center;text-align:left;padding:12px;margin:0}.qtool>span{display:flex;flex-direction:column;min-width:0}.qtool b{font-size:.92rem}.qtool small{font-size:.74rem;line-height:1.25}.qtool .ic{color:var(--gold);flex:none}
+.qsort{margin-bottom:10px}.qsort button{font-size:.8rem}
+.advt{display:inline-block;margin-top:5px;padding:2px 8px;border-radius:99px;font-size:.68rem;font-weight:600;color:var(--gold);background:var(--gold-soft)}
+.srow.adv .sinfo>b{opacity:.85}
+/* app icon picker */
+.icongrid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px 10px;margin-top:14px}
+.icopick{display:flex;flex-direction:column;align-items:center;gap:7px;background:none;border:0;padding:4px;color:var(--ink);font-size:.72rem;transition:transform .18s var(--ease)}
+.icopick:active{transform:scale(.93)}
+.apic{display:block;width:100%;aspect-ratio:1;border-radius:22%;overflow:hidden;box-shadow:0 0 0 1px var(--line);transition:box-shadow .2s}.apic svg{display:block;width:100%;height:100%}
+.icopick.eq .apic{box-shadow:0 0 0 3px var(--bg),0 0 0 5px var(--ac)}
+.icopick b{font-weight:600}
+.qhero .qh-t>div:first-child{flex:1;min-width:0}.qh-ar{flex:none;font-family:'Amiri Quran',serif;font-size:2.1rem;line-height:1.2;color:var(--gold);font-size:2.4rem}
+.top .ar-sub{margin-top:-2px;margin-bottom:6px}
