@@ -15,10 +15,17 @@ function lev(a, b) {
 }
 const sim0 = (a, b) => { if (a === b) return 1; const L = Math.max(a.length, b.length); return !L || Math.abs(a.length - b.length) > 3 ? 0 : 1 - lev(a, b) / L; };
 // The mushaf writes some long alefs as a small mark that speech models spell out in full, so words that differ only by alef count as a near match.
-const sim = (a, b) => { const s = sim0(a, b); return s === 1 ? 1 : Math.max(s, a.replace(/ا/g, '') === b.replace(/ا/g, '') && a.length > 1 ? .95 : 0); };
+export const sim = (a, b) => { const s = sim0(a, b); if (s === 1) return 1; const x = a.replace(/ا/g, ''), y = b.replace(/ا/g, '');
+  if (x === y && x.length > 0) return 1; // alef-only differences are spelling, not recitation
+  let t = s; if (x.length > 1 && x.length === y.length && x.slice(0, -1) === y.slice(0, -1) && /^[ته]$/.test(x.slice(-1)) && /^[ته]$/.test(y.slice(-1))) t = Math.max(t, .93); // pause-form ة read as ت
+  return Math.max(t, x.length > 1 && y.length > 1 ? sim0(x, y) * .98 : 0); };
+// Mushaf spelling to the spelling speech models use: waw + dagger alef is a long alef (صلوة, زكوة, حيوة, الربوا).
+export const gnrm = s => nrm(String(s).replace(/وٰ/g, 'ا'));
+// Whisper sometimes invents subtitle credits over silence. Drop those words unless they are really in the expected text.
+const HALLU = new Set(['ترجمه', 'نانسي', 'قنقر', 'اشتركوا', 'اشترك', 'الاشتراك', 'بالاشتراك', 'قناتنا', 'القناه', 'لقناتنا', 'مشاهدتكم', 'المشاهده', 'للمشاهده', 'تنسوا', 'الجرس', 'اعجاب', 'لايك', 'شكرا', 'سبسكرايب', 'اشتركو', 'منتديات', 'موسيقى', 'مترجم', 'حقوق', 'الطبع']);
 // Word alignment (edit-distance DP) that also understands the speech model merging or splitting words:
 // one heard word can cover two expected words, and two heard words can cover one expected word.
-function align(E, H) {
+export function align(E, H) {
   const m = E.length, n = H.length, GAP = -.7, pts = s => s >= .75 ? 1 : s >= .5 ? .2 : -1;
   const dp = Array.from({ length: m + 1 }, () => new Float32Array(n + 1)), bt = Array.from({ length: m + 1 }, () => new Uint8Array(n + 1));
   for (let i = 1; i <= m; i++) dp[i][0] = i * GAP; for (let j = 1; j <= n; j++) dp[0][j] = j * GAP;
@@ -149,23 +156,26 @@ export function openRecite(surah, ayahs, opts = {}) {
     ov.innerHTML = `${top('Checking your recitation')}<div class="ov-body"><div class="working"><div class="spinner"></div><h3 id="ph">Listening to your recitation…</h3><p class="muted">This takes a few seconds.</p></div></div>`;
     try {
       const up = await prepare(blob), nm = x => 'rec.' + (/wav/.test(x.type) ? 'wav' : /mp4|m4a/.test(x.type) ? 'm4a' : 'webm');
-      const send = (model, x) => { const fd = new FormData(); fd.append('audio', up, nm(up)); fd.append('model', model); return api('transcribe' + (x ? '?x=1' : ''), 'POST', fd); };
+      const send = (model, x) => { const fd = new FormData(); fd.append('audio', up, nm(up)); fd.append('model', model); fd.append('prompt', 'تلاوة من القرآن الكريم'); return api('transcribe' + (x ? '?x=1' : ''), 'POST', fd); };
       const secondP = send('whisper-large-v3-turbo', true).catch(() => null); // a second opinion from another model
       const t = await send('whisper-large-v3');
       const ph = $('#ph', ov); if (ph) ph.textContent = 'Comparing with the mushaf…';
+      const E = W.map(x => gnrm(x.w)), inE = new Set(E), off = up._off || 0;
       const parse = t0 => { const H = [], Hr = [], Ht = []; if (!t0) return { H, Hr, Ht };
-        if (Array.isArray(t0.words) && t0.words.length >= 2) t0.words.forEach(x => { const r = String(x.w || '').replace(/[^؀-ۿ]/g, ''), n = nrm(r); if (n) { H.push(n); Hr.push(r); Ht.push({ s: x.s, e: x.e }); } });
-        else (t0.text || '').replace(/[^؀-ۿ\s]/g, ' ').split(/\s+/).filter(Boolean).forEach(r => { const n = nrm(r); if (n) { H.push(n); Hr.push(r); Ht.push(null); } });
+        const add = (r, tm) => { const n = gnrm(r); if (n && !(HALLU.has(n) && !inE.has(n))) { H.push(n); Hr.push(r); Ht.push(tm ? { s: tm.s + off, e: tm.e + off } : null); } };
+        if (Array.isArray(t0.words) && t0.words.length >= 2) t0.words.forEach(x => add(String(x.w || '').replace(/[^؀-ۿ]/g, ''), { s: x.s, e: x.e }));
+        else (t0.text || '').replace(/[^؀-ۿ\s]/g, ' ').split(/\s+/).filter(Boolean).forEach(r => add(r, null));
         return { H, Hr, Ht }; };
       const L = lenOf(), { H, Hr, Ht } = parse(t), p2 = parse(await secondP);
       if (H.length < 2) throw new Error("I couldn't hear a recitation. Check your microphone and try again.");
-      const E = W.map(x => nrm(x.w)), al = align(E, H), m = W.length, strict = S.settings.leniency === 'strict', al2 = p2.H.length >= 2 ? align(E, p2.H) : null;
+      const al = align(E, H), m = W.length, strict = S.settings.leniency === 'strict', al2 = p2.H.length >= 2 ? align(E, p2.H) : null;
       // Two models, one verdict: gentle/balanced trust the better reading (transcription noise is forgiven), strict needs both to agree.
       const info = W.map((x, i) => {
         const j = al.lo[i], jh = al.hi[i], s1 = j < 0 ? 0 : al.sc[i], h1 = j < 0 ? null : Hr.slice(j, jh + 1).join(' ');
         let s = s1, heard = h1, alt = null, present = j >= 0;
         if (al2) { const k = al2.lo[i]; if (k >= 0) { const s2 = al2.sc[i], h2 = p2.Hr.slice(k, al2.hi[i] + 1).join(' '); if (!present && !strict) { present = true; s = s2; heard = h2; } else if (present) { if (strict ? s2 < s1 : s2 > s1) { s = s2; alt = h1; heard = h2; } else alt = h2; } } }
-        return { i, j, jh, s, alt, heard, conf: present && s < 1 && confusable(E[i], (heard ? nrm(heard) : '')), st: !present ? 'missing' : s >= L.ok ? 'ok' : s >= L.wrong ? 'close' : 'wrong' };
+        const agree = !!(alt && heard && s < 1 && gnrm(alt) === gnrm(heard));
+        return { i, j, jh, s, alt, heard, agree, conf: present && s < 1 && confusable(E[i], (heard ? gnrm(heard) : '')), st: !present ? 'missing' : s >= L.ok ? 'ok' : s >= L.wrong ? 'close' : 'wrong' };
       });
       const r0 = { hidx: info.map(x => x.j), hhi: info.map(x => x.jh), sp: al.sp, ht: Ht, hl: Hr.map(x => x.length), noTs: !Ht.some(Boolean), hn: H.length, fixed: {}, refined: {}, rp: {} };
       const ph3 = $('#ph', ov); if (ph3) ph3.textContent = 'Comparing how each word sounds…';
@@ -183,13 +193,13 @@ export function openRecite(surah, ayahs, opts = {}) {
       let coach = null;
       if (missing / m <= .35) {
         const p2 = $('#ph', ov); if (p2) p2.textContent = 'Your coach is reviewing tajweed…';
-        try { coach = await api('coach', 'POST', { leniency: S.settings.leniency || 'balanced', surah: surah.en, history: W.map((x, i) => { const o = (S.weak || {})[wkey(surah.n, x.a, x.pos)]; return o ? { i, expected: x.w, misses: o.c, issue: o.issue } : null; }).filter(Boolean).slice(0, 40), transcript: t.text, words: m <= 250 ? W.map(x => x.w) : null, candidates: cands.map(c => ({ i: c.i, expected: W[c.i].w, heard: c.heard, near: c.heard ? null : near(c.i), sim: +c.s.toFixed(2), alt: c.alt || undefined, ac: c.z != null ? +c.z.toFixed(1) : undefined, suspect: c.st === 'ok' ? true : undefined })) }); } catch { coach = null; }
+        try { coach = await api('coach', 'POST', { leniency: S.settings.leniency || 'balanced', surah: surah.en, history: W.map((x, i) => { const o = (S.weak || {})[wkey(surah.n, x.a, x.pos)]; return o ? { i, expected: x.w, misses: o.c, issue: o.issue } : null; }).filter(Boolean).slice(0, 40), transcript: t.text, words: m <= 250 ? W.map(x => x.w) : null, candidates: cands.map(c => ({ i: c.i, expected: W[c.i].w, heard: c.heard, near: c.heard ? null : near(c.i), sim: +c.s.toFixed(2), alt: c.alt || undefined, agree: c.agree || undefined, ac: c.z != null ? +c.z.toFixed(1) : undefined, suspect: c.st === 'ok' ? true : undefined })) }); } catch { coach = null; }
       }
       const marks = {};
       for (const c of cands) {
         const v = coach && (coach.verdicts || []).find(x => x.i === c.i);
         const suspect = c.st === 'ok', fallback = c.st === 'missing' ? 'missing' : c.st === 'wrong' ? 'wrong' : 'pron';
-        if (v && !v.real) continue;
+        if (v && (!v.real || (v.confidence < .4 && !c.agree && c.st !== 'missing' && !strict))) continue; // unsure verdicts do not count against the student
         if (suspect && !v && (L.passPron || !(c.conf || c.z > 3.5))) continue;
         const type = v ? ({ wrong: 'wrong', missing: 'missing', pronunciation: 'pron' }[v.type] || fallback) : fallback;
         marks[c.i] = { type, conf: c.conf, heard: c.heard, issue: v?.issue || (type === 'missing' ? 'This word was not heard.' : type === 'wrong' ? 'This sounded like a different word.' : 'Pronunciation looks slightly off.'), tip: v?.tip || '' };
@@ -352,8 +362,8 @@ export function openRecite(surah, ayahs, opts = {}) {
       const buf = await decoded(); if (!buf) return null; if (!env) env = envelope(buf); const c = clipFor(i, buf.duration); if (!c) return null;
       const s0 = Math.max(0, c.s - .4), e0 = Math.min(buf.duration, c.e + .4); let pcm = await to16k(buf, s0, e0), pk = 0; for (let k = 0; k < pcm.length; k++) pk = Math.max(pk, Math.abs(pcm[k])); if (pk > .002) { const g = Math.min(20, .9 / pk); pcm = pcm.map(v => v * g); }
       const fd = new FormData(); fd.append('audio', wavOf(pcm), 'w.wav'); fd.append('model', 'whisper-large-v3');
-      const t = await api('transcribe?x=1', 'POST', fd), want = nrm(W[i].w), hn = r.marks[i] && r.marks[i].heard ? nrm(r.marks[i].heard) : '';
-      let best = null; (t.words || []).forEach(w => { const n = nrm(String(w.w || '').replace(/[^؀-ۿ]/g, '')); if (!n) return; const sc = Math.max(sim(want, n), hn ? sim(hn, n) : 0); if (!best || sc > best.sc) best = { sc, s: w.s, e: w.e }; });
+      const t = await api('transcribe?x=1', 'POST', fd), want = gnrm(W[i].w), hn = r.marks[i] && r.marks[i].heard ? gnrm(r.marks[i].heard) : '';
+      let best = null; (t.words || []).forEach(w => { const n = gnrm(String(w.w || '').replace(/[^؀-ۿ]/g, '')); if (!n) return; const sc = Math.max(sim(want, n), hn ? sim(hn, n) : 0); if (!best || sc > best.sc) best = { sc, s: w.s, e: w.e }; });
       if (!best || best.sc < .6) return null; const rs = Math.max(0, s0 + best.s - .03), re2 = Math.min(buf.duration, s0 + best.e + .05); return re2 - rs >= .15 && re2 - rs <= 3 ? { s: rs, e: re2 } : null;
     })().catch(() => null); return r.rp[i];
   }
@@ -419,7 +429,7 @@ export function openRecite(surah, ayahs, opts = {}) {
     btn.disabled = true; btn.innerHTML = `${ic('mic', 16)} Checking…`; say('');
     try {
       const blob = new Blob(chunks, { type: rc.mimeType || mt || 'audio/webm' }), up = await prepare(blob), fd = new FormData(); fd.append('audio', up, 'w.' + (/wav/.test(up.type) ? 'wav' : /mp4|m4a/.test(up.type) ? 'm4a' : 'webm')); fd.append('model', 'whisper-large-v3');
-      const t = await api('transcribe?x=1', 'POST', fd), L = lenOf(), want = nrm(W[i].w);
+      const t = await api('transcribe?x=1', 'POST', fd), L = lenOf(), want = gnrm(W[i].w);
       const toks = (t.text || '').replace(/[^؀-ۿ\s]/g, ' ').split(/\s+/).map(nrm).filter(Boolean);
       let best = 0, heard = toks.join(' '); toks.forEach((x, k) => { best = Math.max(best, sim(want, x)); if (toks[k + 1]) best = Math.max(best, sim(want, x + toks[k + 1])); });
       const need = result.marks[i].conf ? 1 : Math.max(L.ok, .85);

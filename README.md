@@ -113,3 +113,9 @@ Motion pass: staggered row entrances, count-up numbers, growing progress bars, b
 
 ### v17
 Prayer tab redesigned (hero with next prayer + daily progress segments, one clean list, weekly strip). Real draggable sliders (text size, player seek). Third-party service names only appear in the Privacy policy and Terms. Friendlier load errors. Sweep script covers all routes.
+
+## v18: grader accuracy
+- Spelling noise no longer counts against you: alef-only differences, ة/ت pause forms and waw+dagger-alef words (صلوة, زكوة, الربوا) match as the same word.
+- Whisper's silence hallucinations (subtitle credits, "subscribe") are filtered out; leading/trailing silence is trimmed before transcribing, with word times re-offset so replay still lines up.
+- A short Quranic cue is sent with each transcription.
+- When both speech models independently hear the same wrong word, that is passed to the coach as strong evidence (`agree`); the coach now returns a confidence and low-confidence verdicts are not held against the student (except in strict).

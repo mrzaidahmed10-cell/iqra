@@ -15,13 +15,24 @@ export async function to16k(buf, from = 0, to = buf.duration) {
 }
 const normalize = d => { let pk = 0; for (let i = 0; i < d.length; i++) pk = Math.max(pk, Math.abs(d[i])); const g = pk > .002 ? Math.min(20, .9 / pk) : 1; if (g !== 1) for (let i = 0; i < d.length; i++) d[i] *= g; return d; };
 
+// Long silence before or after the recitation makes speech models invent words. Trim it, keeping a little breathing room.
+export function voicedSpan(x, sr = 16000) {
+  const f = Math.round(sr * .02), n = Math.floor(x.length / f); if (n < 20) return [0, x.length];
+  const e = Float32Array.from({ length: n }, (_, k) => { let a = 0; for (let i = k * f; i < (k + 1) * f; i++) a += x[i] * x[i]; return Math.sqrt(a / f); });
+  const thr = Math.max(.012, median(Array.from(e).sort((p, q) => p - q).slice(Math.floor(n * .6))) * .12);
+  let lo = 0, hi = n - 1; while (lo < n && e[lo] < thr) lo++; while (hi > lo && e[hi] < thr) hi--;
+  if (hi - lo < 10) return [0, x.length];
+  const pad = Math.round(.3 / .02), a = Math.max(0, lo - pad) * f, b = Math.min(n, hi + 1 + pad) * f;
+  return a < sr * .4 && x.length - b < sr * .4 ? [0, x.length] : [a, Math.min(x.length, b)];
+}
 // Speech models work best on clean 16 kHz mono with a healthy level, which also avoids odd phone codecs.
 export async function prepare(blob) {
   try {
     const AC = window.AudioContext || window.webkitAudioContext, ctx = new AC(); let buf;
     try { buf = await ctx.decodeAudioData(await blob.arrayBuffer()); } finally { ctx.close().catch(() => {}); }
     if (!buf || buf.duration > 600 || buf.duration < .3) return blob;
-    return wavOf(normalize(await to16k(buf)));
+    const pcm = normalize(await to16k(buf)), [a, b] = voicedSpan(pcm), out = wavOf(a === 0 && b === pcm.length ? pcm : pcm.subarray(a, b));
+    out._off = a / 16000; return out; // _off: seconds cut from the start, so word times still line up with the full recording
   } catch { return blob; }
 }
 
