@@ -1088,3 +1088,20 @@ body::before{content:"";position:fixed;left:0;right:0;top:0;height:380px;z-index
 .icopick b{font-weight:600}
 .qhero .qh-t>div:first-child{flex:1;min-width:0}.qh-ar{flex:none;font-family:'Amiri Quran',serif;font-size:2.1rem;line-height:1.2;color:var(--gold);font-size:2.4rem}
 .top .ar-sub{margin-top:-2px;margin-bottom:6px}
+
+/* ===== v19b: calmer, more compact ===== */
+body::before{display:none}
+.card.up::before,.qhero::before{display:none}
+.sec::before{display:none}
+.top{flex-wrap:nowrap;justify-content:space-between;align-items:center;gap:10px}
+.top .ar-sub{flex-basis:auto;order:0;margin:0;font-size:1.25rem;line-height:1.2;opacity:.9}
+.top .chip{order:2}
+.top h1{margin-right:auto}
+.snum,.ayah-top .num{width:36px;height:36px;min-width:36px}.snum::before,.snum::after{inset:6px}
+.ayah-top .num{width:32px;height:32px;min-width:32px;font-size:.74rem}.ayah-top .num::before,.ayah-top .num::after{inset:5px}
+.qcont{margin:2px 0 8px;padding:10px 14px;gap:10px}
+.qsearch{display:flex;gap:8px;align-items:center}.qsearch .search{flex:1;margin:0}.qsearch .icon-btn{flex:none;color:var(--gold)}
+.slist .srow{padding-block:9px}.srow .sinfo small{font-size:.76rem}
+.advt{margin:0;padding:0;background:none;font-size:inherit;font-weight:600}
+.bismillah{margin:14px 0 4px;font-size:1.7rem}.bismillah::after{display:none}
+.icongrid{gap:10px 8px}

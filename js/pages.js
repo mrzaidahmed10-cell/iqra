@@ -48,7 +48,7 @@ export function viewSettings() {
     <label>Reciter<select data-set="reciter">${RECITERS.map(r => `<option value="${r.id}" ${s.reciter === r.id ? 'selected' : ''}>${r.n}</option>`).join('')}</select></label>
     <label>Playback speed</label>${seg('rate', [[0.75, '0.75×'], [1, '1×'], [1.25, '1.25×']])}</section>
     <section class="card form"><h3>Recitation coach</h3><label>Strictness</label>${seg('leniency', Object.entries(LENIENCY).map(([k, v]) => [k, v.n]))}<p class="muted small">${LENIENCY[s.leniency || 'balanced'].d}</p><button class="btn" data-act="placement">${ic('compass', 18)} Retake the placement quiz</button></section>
-    <section class="card form"><h3>Feel</h3>${tg('sound', 'Sounds', 'Soft tones for answers and navigation')}${tg('haptics', 'Haptics', 'Gentle vibration on supported phones')}${tg('openAll', 'Explorer mode', 'Unlock every surah regardless of level')}</section>`,
+    <section class="card form"><h3>Feel</h3>${tg('sound', 'Sounds', 'Soft tones for answers and navigation')}${tg('haptics', 'Haptics', 'Gentle vibration on supported phones')}${tg('openAll', 'Explorer mode', 'Stop flagging surahs above your level')}</section>`,
   };
 }
 function viewIcons() {

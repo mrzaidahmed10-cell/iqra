@@ -310,7 +310,7 @@ async function viewPath() {
 // =====================================================================
 function surahRow(s) {
   const st = statusOf(s.n), off = !unlocked(s), r = S.surahs[s.n], pc = r ? Math.round(r.learned.length / s.count * 100) : 0;
-  return `<a class="srow ${st} ${off ? 'adv' : ''}" href="#/surah/${s.n}"><span class="snum"><b>${s.n}</b></span><div class="sinfo"><b>${esc(s.en)}</b><small>${esc(s.tr)} · ${s.count} ayahs · ${/medin/i.test(s.type) ? 'Medinan' : 'Meccan'}</small>${st === 'learning' ? `<div class="progress thin"><i style="width:${pc}%"></i></div>` : ''}${off ? '<span class="advt">Not recommended for your level yet</span>' : ''}</div><div class="sright"><span class="ar sname">${esc(s.ar)}</span>${st !== 'new' ? `<i class="stat">${stIcon(st)}</i>` : ''}</div></a>`;
+  return `<a class="srow ${st} ${off ? 'adv' : ''}" href="#/surah/${s.n}"><span class="snum"><b>${s.n}</b></span><div class="sinfo"><b>${esc(s.en)}</b><small>${esc(s.tr)} · ${s.count} ayahs${off ? ' · <span class="advt">Not recommended yet</span>' : ''}</small>${st === 'learning' ? `<div class="progress thin"><i style="width:${pc}%"></i></div>` : ''}</div><div class="sright"><span class="ar sname">${esc(s.ar)}</span>${st !== 'new' ? `<i class="stat">${stIcon(st)}</i>` : ''}</div></a>`;
 }
 function filteredSurahs() {
   let l = surahList; const q = qSearch.trim();
@@ -352,16 +352,12 @@ async function viewListen() {
 }
 async function viewQuran() {
   if (!surahList.length) surahList = await getSurahList();
-  const F = [['all', 'All'], ['rec', 'For you'], ['path', 'My path'], ['learning', 'Learning'], ['learned', 'Learned'], ['mastered', 'Mastered'], ['short', 'Short'], ['meccan', 'Meccan'], ['medinan', 'Medinan']], SO = [['order', 'Mushaf order'], ['short', 'Shortest first'], ['fit', 'Best fit first']];
-  const lt = learnedTotal(), done = surahList.filter(x => ['learned', 'mastered'].includes(statusOf(x.n))).length, p = lt / TOTAL_AYAHS;
-  const lr = S.lastRead && surahList[S.lastRead - 1], it = nextItem(surahList), nx = it && it.k === 'surah' ? surahList[it.n - 1] : null, cont = lr || nx;
-  const pick = surahList.filter(x => unlocked(x) && x.count <= 40 && !['learned', 'mastered'].includes(statusOf(x.n))), tp = pick.length ? pick[Math.floor(Date.now() / 864e5) % pick.length] : null;
-  return { html: `<header class="top"><h1>Quran</h1><span class="ar-sub">القرآن الكريم</span></header>${rlSeg('read')}
-    <section class="card qhero"><div class="qh-t"><div><small class="kick">Your Quran</small><h2>${lt.toLocaleString()}<span> / ${TOTAL_AYAHS.toLocaleString()} ayahs</span></h2><p class="muted">${done} of 114 surahs learned</p></div><div class="qh-ar" aria-hidden="true">ٱقْرَأْ</div></div><div class="progress"><i style="width:${Math.max(lt ? 1 : 0, p * 100)}%"></i></div></section>
-    ${cont ? `<a class="card lrow qcont" href="#/surah/${cont.n}"><span class="snum"><b>${cont.n}</b></span><div class="grow"><small class="muted">${lr ? 'Continue where you were' : 'Up next on your path'}</small><b>${esc(cont.en)}</b><small class="muted">${esc(cont.tr)} · ${cont.count} ayahs</small></div><span class="ar sname">${esc(cont.ar)}</span></a>` : ''}
-    <div class="qtools"><button class="card qtool" data-act="q-surprise">${ic('compass', 20)}<span><b>Surprise me</b><small class="muted">A surah that fits your level</small></span></button>${tp ? `<a class="card qtool" href="#/surah/${tp.n}">${ic('star', 20)}<span><b>Today's pick</b><small class="muted">${esc(tp.en)} · ${tp.count} ayahs</small></span></a>` : ''}</div>
-    <label class="search">${ic('search', 18)}<input id="qsearch" placeholder="Search 114 surahs" value="${esc(qSearch)}" type="search" aria-label="Search surahs"></label><div class="chips-row scroll">${F.map(f => `<button class="pick ${qFilter === f[0] ? 'on' : ''}" data-act="filter" data-f="${f[0]}">${f[1]}</button>`).join('')}</div>
-    <div class="seg qsort">${SO.map(f => `<button class="${qSort === f[0] ? 'on' : ''}" data-act="qsort" data-v="${f[0]}">${f[1]}</button>`).join('')}</div>
+  const F = [['all', 'All'], ['rec', 'For you'], ['path', 'My path'], ['learning', 'Learning'], ['learned', 'Learned'], ['short', 'Short']];
+  const lt = learnedTotal(), lr = S.lastRead && surahList[S.lastRead - 1], it = nextItem(surahList), nx = it && it.k === 'surah' ? surahList[it.n - 1] : null, cont = lr || nx;
+  return { html: `<header class="top"><h1>Quran</h1><span class="chip">${lt.toLocaleString()} / ${TOTAL_AYAHS.toLocaleString()}</span></header>${rlSeg('read')}
+    ${cont ? `<a class="card lrow qcont" href="#/surah/${cont.n}"><span class="snum"><b>${cont.n}</b></span><div class="grow"><small class="muted">${lr ? 'Continue' : 'Up next'}</small><b>${esc(cont.en)}</b></div><span class="ar sname">${esc(cont.ar)}</span></a>` : ''}
+    <div class="qsearch"><label class="search">${ic('search', 18)}<input id="qsearch" placeholder="Search 114 surahs" value="${esc(qSearch)}" type="search" aria-label="Search surahs"></label><button class="icon-btn" data-act="q-surprise" aria-label="Surprise me, a random surah for your level">${ic('compass', 20)}</button></div>
+    <div class="chips-row scroll">${F.map(f => `<button class="pick ${qFilter === f[0] ? 'on' : ''}" data-act="filter" data-f="${f[0]}">${f[1]}</button>`).join('')}</div>
     <div class="slist" id="qlist">${listHTML()}</div>` };
 }
 const ayahHTML = (a, learned) => `<article class="ayah ${learned ? 'learned' : ''}" data-g="${a.g}"><div class="ayah-top"><span class="num">${a.n}</span><button class="icon-btn sm" data-act="play-from" data-a="${a.n}" aria-label="Play from ayah ${a.n}">${ic('play', 16)}</button>${learned ? `<span class="chk">${ic('check', 14)}</span>` : ''}</div><p class="ar" dir="rtl">${esc(a.ar)}</p>${S.settings.translit ? `<p class="tl">${esc(a.tr)}</p>` : ''}${S.settings.translation ? `<p class="en">${esc(a.en)}</p>` : ''}</article>`;

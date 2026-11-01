@@ -124,3 +124,7 @@ Prayer tab redesigned (hero with next prayer + daily progress segments, one clea
 - Geometric star pattern behind headers/hero cards, Arabic subtitles on each tab, eight-point medallions for surah and ayah numbers, framed bismillah.
 - 8 selectable app icons (More > Settings > Change app icon). Changes the tab icon, Add to Home Screen icon and install manifest; an already-installed icon only changes after re-adding.
 - Quran tab redesigned: progress hero, continue card, Surprise me, Today's pick, filters (For you, Short, Meccan, Medinan...), sort. No surah is locked anymore: ones above your level show "Not recommended for your level yet".
+
+## v19b / v20: calmer UI and offline
+- Decluttered: removed page-wide pattern, Quran hero and sort row; Arabic subtitle sits inline with each title; Quran tab is search + compass (random surah) + 6 filters + list. "Not recommended yet" now sits in the surah's meta line.
+- `sw.js`: network-first service worker (offline shell, newest deploy wins when online; `/api` never cached).
