@@ -128,3 +128,6 @@ Prayer tab redesigned (hero with next prayer + daily progress segments, one clea
 ## v19b / v20: calmer UI and offline
 - Decluttered: removed page-wide pattern, Quran hero and sort row; Arabic subtitle sits inline with each title; Quran tab is search + compass (random surah) + 6 filters + list. "Not recommended yet" now sits in the surah's meta line.
 - `sw.js`: network-first service worker (offline shell, newest deploy wins when online; `/api` never cached).
+
+## v21: reading tools
+- Save (bookmark) and share any ayah; Quran tab gets Saved and Juz views; deep links `#/surah/N/AYAH` scroll to and highlight the ayah.

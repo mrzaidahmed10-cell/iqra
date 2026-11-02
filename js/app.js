@@ -21,7 +21,7 @@ import { back, ring, val, title, getErr, timers, clearTimers, refresh, lrow } fr
 import * as P from './pages.js';
 import { runPlacement } from './placement.js';
 
-let surahList = [], rtok = 0, qFilter = 'all', qSearch = '', chartMetric = 'minutes', progTab = 'overview', lFilter = 'all', lSearch = '', qSort = 'order';
+let surahList = [], rtok = 0, qFilter = 'all', qSearch = '', chartMetric = 'minutes', progTab = 'overview', lFilter = 'all', lSearch = '', qSort = 'order', curAyahs = null;
 const app = $('#app');
 
 // =====================================================================
@@ -323,7 +323,10 @@ function filteredSurahs() {
   if (qSort === 'short') l = [...l].sort((x, y) => x.count - y.count || x.n - y.n); else if (qSort === 'fit') l = [...l].sort((x, y) => (unlocked(y) ? 1 : 0) - (unlocked(x) ? 1 : 0) || x.n - y.n);
   return l;
 }
-const listHTML = () => filteredSurahs().map(surahRow).join('') || '<p class="muted center">Nothing here yet.</p>';
+const JUZ = [[1, 1], [2, 142], [2, 253], [3, 93], [4, 24], [4, 148], [5, 82], [6, 111], [7, 88], [8, 41], [9, 93], [11, 6], [12, 53], [15, 1], [17, 1], [18, 75], [21, 1], [23, 1], [25, 21], [27, 56], [29, 46], [33, 31], [36, 28], [39, 32], [41, 47], [46, 1], [51, 31], [58, 1], [67, 1], [78, 1]];
+const juzHTML = () => JUZ.map((j, i) => { const s = surahList[j[0] - 1]; return s ? `<a class="srow" href="#/surah/${j[0]}/${j[1]}"><span class="snum"><b>${i + 1}</b></span><div class="sinfo"><b>Juz ${i + 1}</b><small>Starts at ${esc(s.en)} ${j[0]}:${j[1]}</small></div><div class="sright"><span class="ar sname">${esc(s.ar)}</span></div></a>` : ''; }).join('');
+const savedHTML = () => { const l = Object.values(S.bookmarks || {}).sort((x, y) => y.at - x.at); return l.map(b => `<a class="srow saved" href="#/surah/${b.n}/${b.a}"><span class="snum"><b>${b.a}</b></span><div class="sinfo"><b>${esc(b.s)} ${b.n}:${b.a}</b><small class="ar sv-t" dir="rtl" lang="ar">${esc(b.t)}</small></div></a>`).join('') || '<p class="muted center pad">Tap the bookmark on any ayah to save it here.</p>'; };
+const listHTML = () => qFilter === 'juz' ? juzHTML() : qFilter === 'saved' ? savedHTML() : filteredSurahs().map(surahRow).join('') || '<p class="muted center">Nothing here yet.</p>';
 const rlSeg = on => `<div class="seg rdls"><a class="${on === 'read' ? 'on' : ''}" href="#/quran">${ic('book', 16)} Read</a><a class="${on === 'listen' ? 'on' : ''}" href="#/listen">${ic('headphones', 16)} Listen</a></div>`;
 const recName = id => (RECITERS.find(r => r.id === id) || RECITERS[0]).n;
 function listenRows() {
@@ -352,7 +355,7 @@ async function viewListen() {
 }
 async function viewQuran() {
   if (!surahList.length) surahList = await getSurahList();
-  const F = [['all', 'All'], ['rec', 'For you'], ['path', 'My path'], ['learning', 'Learning'], ['learned', 'Learned'], ['short', 'Short']];
+  const F = [['all', 'All'], ['rec', 'For you'], ['path', 'My path'], ['learning', 'Learning'], ['learned', 'Learned'], ['short', 'Short'], ['juz', 'Juz'], ['saved', 'Saved']];
   const lt = learnedTotal(), lr = S.lastRead && surahList[S.lastRead - 1], it = nextItem(surahList), nx = it && it.k === 'surah' ? surahList[it.n - 1] : null, cont = lr || nx;
   return { html: `<header class="top"><h1>Quran</h1><span class="chip">${lt.toLocaleString()} / ${TOTAL_AYAHS.toLocaleString()}</span></header>${rlSeg('read')}
     ${cont ? `<a class="card lrow qcont" href="#/surah/${cont.n}"><span class="snum"><b>${cont.n}</b></span><div class="grow"><small class="muted">${lr ? 'Continue' : 'Up next'}</small><b>${esc(cont.en)}</b></div><span class="ar sname">${esc(cont.ar)}</span></a>` : ''}
@@ -360,11 +363,12 @@ async function viewQuran() {
     <div class="chips-row scroll">${F.map(f => `<button class="pick ${qFilter === f[0] ? 'on' : ''}" data-act="filter" data-f="${f[0]}">${f[1]}</button>`).join('')}</div>
     <div class="slist" id="qlist">${listHTML()}</div>` };
 }
-const ayahHTML = (a, learned) => `<article class="ayah ${learned ? 'learned' : ''}" data-g="${a.g}"><div class="ayah-top"><span class="num">${a.n}</span><button class="icon-btn sm" data-act="play-from" data-a="${a.n}" aria-label="Play from ayah ${a.n}">${ic('play', 16)}</button>${learned ? `<span class="chk">${ic('check', 14)}</span>` : ''}</div><p class="ar" dir="rtl">${esc(a.ar)}</p>${S.settings.translit ? `<p class="tl">${esc(a.tr)}</p>` : ''}${S.settings.translation ? `<p class="en">${esc(a.en)}</p>` : ''}</article>`;
+const bmOf = (n, a) => (S.bookmarks || {})[n + ':' + a];
+const ayahHTML = (a, learned, n) => `<article class="ayah ${learned ? 'learned' : ''}" id="ay${a.n}" data-g="${a.g}"><div class="ayah-top"><span class="num">${a.n}</span><button class="icon-btn sm" data-act="play-from" data-a="${a.n}" aria-label="Play from ayah ${a.n}">${ic('play', 16)}</button>${learned ? `<span class="chk">${ic('check', 14)}</span>` : ''}<span class="ay-tools"><button class="icon-btn sm bm ${bmOf(n, a.n) ? 'on' : ''}" data-act="bm" data-n="${n}" data-a="${a.n}" aria-pressed="${!!bmOf(n, a.n)}" aria-label="Save ayah ${a.n}">${ic('bookmark', 16)}</button><button class="icon-btn sm" data-act="share-ayah" data-n="${n}" data-a="${a.n}" aria-label="Share ayah ${a.n}">${ic('share', 16)}</button></span></div><p class="ar" dir="rtl" lang="ar">${esc(a.ar)}</p>${S.settings.translit ? `<p class="tl">${esc(a.tr)}</p>` : ''}${S.settings.translation ? `<p class="en">${esc(a.en)}</p>` : ''}</article>`;
 async function viewSurah(n) {
   n = +n; if (!surahList.length) surahList = await getSurahList();
   const s = surahList[n - 1]; if (!s) return { html: `${back('#/quran', 'Quran')}<p class="muted">Surah not found.</p>` };
-  const ayahs = await getSurah(n), r = S.surahs[n], st = statusOf(n), l = r ? r.learned.length : 0, lock = !unlocked(s), ses = sessionInfo();
+  const ayahs = await getSurah(n); curAyahs = { n, s, ayahs }; const r = S.surahs[n], st = statusOf(n), l = r ? r.learned.length : 0, lock = !unlocked(s), ses = sessionInfo();
   const resume = ses && ses.kind === 'surah' && ses.n === n;
   const note = lock ? `<div class="banner soft">${ic('info', 16)} <span>Not recommended for your level yet. It is longer than most surahs at stage ${levelOf(S.xp)}, so it may feel heavy. You can still start it, or build up with shorter surahs first.</span></div>` : '';
   S.lastRead = n;
@@ -373,7 +377,8 @@ async function viewSurah(n) {
   return {
     html: `${back('#/quran', 'Quran')}<section class="card surah-head ${st}"><div class="ar big-name">${esc(s.ar)}</div><h2>${esc(s.en)}</h2><p class="muted">${esc(s.tr)} · ${esc(s.type)} · ${s.count} ayahs</p>
       <div class="progress"><i style="width:${l / s.count * 100}%"></i></div><p class="muted small">${st === 'mastered' ? 'Mastered' : st === 'learned' ? 'Learned. Recite it to master it.' : `${l} of ${s.count} ayahs learned`}</p>${act}</section>
-      ${n !== 1 && n !== 9 ? '<div class="bismillah ar">بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ</div>' : ''}<div class="ayahs">${ayahs.map(a => ayahHTML(a, r && r.learned.includes(a.n))).join('')}</div>`,
+      ${n !== 1 && n !== 9 ? '<div class="bismillah ar">بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ</div>' : ''}<div class="ayahs">${ayahs.map(a => ayahHTML(a, r && r.learned.includes(a.n), n)).join('')}</div>`,
+    after: () => { const k = +location.hash.split('/')[3]; if (k) setTimeout(() => { const el = $('#ay' + k); if (el) { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); el.classList.add('flash'); } }, 250); },
   };
 }
 
@@ -443,6 +448,8 @@ const ACT = {
   'weak-nur': () => { closeSheet(); setTimeout(() => openNur({ ask: 'Give me practical tips for the words I keep missing.', extra: 'Words the student keeps missing: ' + weakSummary() }), 220); },
   'nur-surah': t => { const s = surahList[+t.dataset.n - 1]; openNur({ ask: `Give me a short overview of Surah ${s.en}: its theme and one tip for learning it.`, extra: `Looking at Surah ${s.en} (${s.count} ayahs)` }); },
   filter: t => { qFilter = t.dataset.f; refresh(); },
+  bm: t => { const n = +t.dataset.n, k = +t.dataset.a, key = n + ':' + k, B = S.bookmarks = S.bookmarks || {}, on = !B[key]; if (on) { const a = curAyahs && curAyahs.n === n && curAyahs.ayahs.find(x => x.n === k); B[key] = { n, a: k, t: a ? a.ar.slice(0, 140) : '', s: curAyahs ? curAyahs.s.en : '', at: Date.now() }; } else delete B[key]; save(); t.classList.toggle('on', on); t.setAttribute('aria-pressed', on); feel('tap'); toast(on ? 'Ayah saved' : 'Removed from saved', 'bookmark'); },
+  'share-ayah': async t => { const n = +t.dataset.n, k = +t.dataset.a, a = curAyahs && curAyahs.n === n && curAyahs.ayahs.find(x => x.n === k); if (!a) return; const text = `${a.ar}\n\n${a.en || ''}\n\n(Quran ${n}:${k}, ${curAyahs.s.en})`.replace(/\n\n\n/, '\n\n'); try { if (navigator.share) await navigator.share({ text }); else { await navigator.clipboard.writeText(text); toast('Copied', 'check'); } } catch { /* cancelled */ } },
   qsort: t => { qSort = t.dataset.v; refresh(); },
   'q-surprise': () => { const c = surahList.filter(x => unlocked(x) && !['mastered'].includes(statusOf(x.n))); if (c.length) { feel('tap'); location.hash = '#/surah/' + c[Math.floor(Math.random() * c.length)].n; } },
   metric: t => { chartMetric = t.dataset.m; refresh(); },

@@ -1105,3 +1105,10 @@ body::before{display:none}
 .advt{margin:0;padding:0;background:none;font-size:inherit;font-weight:600}
 .bismillah{margin:14px 0 4px;font-size:1.7rem}.bismillah::after{display:none}
 .icongrid{gap:10px 8px}
+
+/* ===== v21: bookmarks, share, juz ===== */
+.ay-tools{margin-inline-start:auto;display:flex;gap:2px}.ayah-top .chk{margin-inline-start:0!important}
+.icon-btn.bm.on{color:var(--gold)}.icon-btn.bm.on svg{fill:var(--gold)}
+.ayah.flash{animation:flash 1.8s var(--ease)}@keyframes flash{0%,60%{background:var(--gold-soft)}100%{background:transparent}}
+.sv-t{display:block;font-size:1.05rem;line-height:1.7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink);max-width:100%}
+.sinfo{min-width:0}.pad{padding:28px 16px}
