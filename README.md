@@ -131,3 +131,9 @@ Prayer tab redesigned (hero with next prayer + daily progress segments, one clea
 
 ## v21: reading tools
 - Save (bookmark) and share any ayah; Quran tab gets Saved and Juz views; deep links `#/surah/N/AYAH` scroll to and highlight the ayah.
+
+## v22: iPad and desktop
+- Only applies to viewports at least 768px wide and 560px tall (phones, including sideways, are untouched: mobile screenshots are pixel-identical to v21 apart from animation timing).
+- Left navigation rail (icons at 768px+, icons with labels at 1440px+) replaces the floating bar; the drag/shrink physics are skipped there.
+- Content column widens (700px tablet, 760px default, 1040/1180px for Home, Quran, Listen, Progress, More and Settings) with two-column Home, Quran lists, Progress, More and Settings, and a sticky surah header beside the ayahs.
+- Sheets open as centered dialogs; the mini-player and toasts align to the content area.

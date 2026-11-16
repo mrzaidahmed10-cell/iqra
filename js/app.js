@@ -123,8 +123,9 @@ function initNav() {
   }
   const kick = () => { if (!raf) { last = 0; raf = requestAnimationFrame(frame); } };
   const hover = c => links.forEach((a, i) => a.classList.toggle('hot', pressed && i === c));
+  const WIDE = matchMedia('(min-width:768px) and (min-height:560px)'); // iPad and desktop use a plain side rail: no drag physics
   nav.addEventListener('pointerdown', e => {
-    if (e.button > 0) return; pressed = true; try { nav.setPointerCapture(e.pointerId); } catch { /* ignore */ }
+    if (e.button > 0 || WIDE.matches) return; pressed = true; try { nav.setPointerCapture(e.pointerId); } catch { /* ignore */ }
     nav.classList.add('press'); nav.classList.remove('shrunk'); tx = clampX(px0(e)); lastCell = cellAt(tx); hover(lastCell); feel('tick', 'tick'); kick();
   });
   nav.addEventListener('pointermove', e => {
@@ -137,12 +138,12 @@ function initNav() {
     if (go) { const target = '#/' + NAV[idx][0]; if (idx !== active || location.hash !== target) { feel('tap', 'tap'); location.hash = target; } }
   };
   nav.addEventListener('pointerup', () => release(true)); nav.addEventListener('pointercancel', () => release(false));
-  nav.addEventListener('click', e => { if (e.detail > 0) e.preventDefault(); });
+  nav.addEventListener('click', e => { if (e.detail > 0 && !WIDE.matches) e.preventDefault(); });
   window.addEventListener('resize', measure);
   // shrink a little while a list scrolls down, ease back when it stops or you scroll up
   let sy = window.scrollY, idle = 0;
   window.addEventListener('scroll', () => {
-    const y = window.scrollY, dy = y - sy; sy = y; if (pressed) return;
+    const y = window.scrollY, dy = y - sy; sy = y; if (pressed || WIDE.matches) return;
     if (dy > 3 && y > 60) nav.classList.add('shrunk'); else if (dy < -3) nav.classList.remove('shrunk');
     clearTimeout(idle); idle = setTimeout(() => nav.classList.remove('shrunk'), 220);
   }, { passive: true });
