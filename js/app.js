@@ -102,14 +102,15 @@ function legalGate() {
 let navApi = null;
 function initNav() {
   const nav = $('.nav'), pill = $('.nav-pill'), links = $$('.nav a');
-  const pad = 6, inset = 5; let cw = 0, active = 0, x = 0, v = 0, tx = 0, pressed = false, raf = 0, last = 0, lift = 0, lv = 0, lastCell = -1;
+  const WIDE = matchMedia('(min-width:768px) and (min-height:560px)'); // iPad and desktop: the same floating bar, standing on the left edge
+  const inset = 5; let pad = 6, cw = 0, active = 0, x = 0, v = 0, tx = 0, pressed = false, raf = 0, last = 0, lift = 0, lv = 0, lastCell = -1;
   const center = i => pad + cw * (i + .5), cellAt = px => Math.max(0, Math.min(links.length - 1, Math.floor((px - pad) / cw)));
   const lo = () => center(0), hi = () => center(links.length - 1), clampX = px => Math.max(lo(), Math.min(hi(), px));
-  const px0 = e => (e.clientX - nav.getBoundingClientRect().left) * (nav.offsetWidth / (nav.getBoundingClientRect().width || 1));
-  const measure = () => { cw = (nav.offsetWidth - 2 * pad) / links.length; pill.style.width = (cw - inset) + 'px'; if (!pressed) x = tx = center(active); paint(); };
+  const px0 = e => { const r = nav.getBoundingClientRect(); return WIDE.matches ? (e.clientY - r.top) * (nav.offsetHeight / (r.height || 1)) : (e.clientX - r.left) * (nav.offsetWidth / (r.width || 1)); };
+  const measure = () => { const vt = WIDE.matches; pad = vt ? 10 : 6; cw = ((vt ? nav.offsetHeight : nav.offsetWidth) - 2 * pad) / links.length; pill.style.width = vt ? '' : (cw - inset) + 'px'; pill.style.height = vt ? (cw - inset) + 'px' : ''; if (vt) links.forEach(a => { a.title = a.getAttribute('aria-label') || ''; }); if (!pressed) x = tx = center(active); paint(); };
   function paint() {
     const st = Math.min(.12, Math.abs(v) / 5200), sx = (1 + st) * (1 + lift * .05), sy = (1 - st * .55) * (1 + lift * .05);
-    pill.style.transform = `translate3d(${x - (cw - inset) / 2}px,0,0) scale(${sx},${sy})`;
+    pill.style.transform = WIDE.matches ? `translate3d(0,${x - (cw - inset) / 2}px,0) scale(${sy},${sx})` : `translate3d(${x - (cw - inset) / 2}px,0,0) scale(${sx},${sy})`;
   }
   // Frame-rate independent spring. Slightly underdamped when settling (a soft landing), tight while a finger holds it.
   function frame(t) {
@@ -123,9 +124,8 @@ function initNav() {
   }
   const kick = () => { if (!raf) { last = 0; raf = requestAnimationFrame(frame); } };
   const hover = c => links.forEach((a, i) => a.classList.toggle('hot', pressed && i === c));
-  const WIDE = matchMedia('(min-width:768px) and (min-height:560px)'); // iPad and desktop use a plain side rail: no drag physics
   nav.addEventListener('pointerdown', e => {
-    if (e.button > 0 || WIDE.matches) return; pressed = true; try { nav.setPointerCapture(e.pointerId); } catch { /* ignore */ }
+    if (e.button > 0) return; pressed = true; try { nav.setPointerCapture(e.pointerId); } catch { /* ignore */ }
     nav.classList.add('press'); nav.classList.remove('shrunk'); tx = clampX(px0(e)); lastCell = cellAt(tx); hover(lastCell); feel('tick', 'tick'); kick();
   });
   nav.addEventListener('pointermove', e => {
@@ -138,7 +138,7 @@ function initNav() {
     if (go) { const target = '#/' + NAV[idx][0]; if (idx !== active || location.hash !== target) { feel('tap', 'tap'); location.hash = target; } }
   };
   nav.addEventListener('pointerup', () => release(true)); nav.addEventListener('pointercancel', () => release(false));
-  nav.addEventListener('click', e => { if (e.detail > 0 && !WIDE.matches) e.preventDefault(); });
+  nav.addEventListener('click', e => { if (e.detail > 0) e.preventDefault(); });
   window.addEventListener('resize', measure);
   // shrink a little while a list scrolls down, ease back when it stops or you scroll up
   let sy = window.scrollY, idle = 0;

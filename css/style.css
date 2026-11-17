@@ -1114,21 +1114,20 @@ body::before{display:none}
 .sinfo{min-width:0}.pad{padding:28px 16px}
 
 /* =====================================================================
-   v22: iPad and desktop. Everything below applies only to wide, tall viewports
+   v22/v23: iPad and desktop. Everything below applies only to wide, tall viewports
    (tablet and up). Phones, including phones turned sideways, never match it.
    ===================================================================== */
 @media (min-width:768px) and (min-height:560px){
-:root{--rail:88px;--cw:700px}
+:root{--rail:112px;--cw:760px}
 #app{padding-left:var(--rail)}
-/* side rail instead of the floating bar */
-.nav,.nav.shrunk{left:0;top:0;bottom:0;right:auto;width:var(--rail);height:auto;transform:none!important;opacity:1!important;border-radius:0;padding:20px 12px;display:flex;flex-direction:column;justify-content:center;align-items:stretch;gap:8px;touch-action:auto}
-.nav-glass{border-radius:0;inset:0;border-right:1px solid var(--line);box-shadow:none}
-.nav-track{display:none}
-.nav a{height:54px;border-radius:16px;flex-direction:row;justify-content:center;gap:12px;transition:background .2s,color .2s}
-.nav a.on{background:color-mix(in srgb,var(--ac) 16%,transparent)}
-@media (hover:hover){.nav a:not(.on):hover{background:color-mix(in srgb,var(--ink) 7%,transparent);color:var(--ink)}}
+/* the same floating glass bar as on phones, standing on the left edge */
+.nav,.nav.shrunk{left:22px;top:50%;bottom:auto;right:auto;width:74px;height:auto;transform:translateY(-50%)!important;opacity:1!important;padding:10px 6px;display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;gap:0;border-radius:37px;touch-action:none;cursor:pointer}
+.nav-glass{border-radius:37px}
+.nav-track{border-radius:37px}
+.nav-pill{left:6px;right:6px;top:0;width:auto;border-radius:24px}
+.nav a{height:60px;width:100%;border-radius:24px}
 .nav a:focus-visible{outline:2px solid var(--ac);outline-offset:-2px}
-.nav a .nl{position:static!important;width:auto!important;height:auto!important;clip:auto!important;margin:0!important;overflow:visible!important;white-space:nowrap;font-size:.95rem;font-weight:600;color:inherit;display:none}
+.nav a .nl{display:none}
 /* top bar and floating pieces line up with the content area */
 .appbar{left:var(--rail);padding-inline:max(16px,calc((100% - var(--rail) - var(--cw))/2 + 20px))}
 .offline{left:calc(var(--rail) + 12px)}
@@ -1143,9 +1142,9 @@ body::before{display:none}
 .l-stage,.ov-body,.n-list,.n-sug,.n-in,.l-foot,.ov-foot{max-width:760px}
 }
 @media (min-width:1024px) and (min-height:560px){
-:root{--cw:760px}
-:root:has(.view[data-v=home]),:root:has(.view[data-v=quran]),:root:has(.view[data-v=listen]),:root:has(.view[data-v=progress]),:root:has(.view[data-v=more]),:root:has(.view[data-v=settings]),:root:has(.view[data-v=account]),:root:has(.view[data-v=surah]){--cw:1040px}
-.view[data-v=home]{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);column-gap:24px;align-items:start}
+:root{--cw:820px}
+:root:has(.view[data-v=home]),:root:has(.view[data-v=quran]),:root:has(.view[data-v=listen]),:root:has(.view[data-v=progress]),:root:has(.view[data-v=more]),:root:has(.view[data-v=settings]),:root:has(.view[data-v=account]),:root:has(.view[data-v=surah]){--cw:1480px}
+.view[data-v=home]{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);column-gap:28px;align-items:start}
 .view[data-v=home]>*{grid-column:2}
 .view[data-v=home]>.hhead,.view[data-v=home]>.plc-nudge{grid-column:1/-1}
 .view[data-v=home]>.hero2{grid-column:1;grid-row:span 7;position:sticky;top:76px;margin-top:0}
@@ -1153,21 +1152,25 @@ body::before{display:none}
 .view[data-v=more]>*,.view[data-v=settings]>*,.view[data-v=account]>*{break-inside:avoid}
 .view[data-v=more]>header,.view[data-v=more]>.profile,.view[data-v=settings]>h2,.view[data-v=account]>h2,.view[data-v=account]>p{column-span:all}
 .view .grp{break-after:avoid}
+.view[data-v=more]>.profile{margin-bottom:8px}.view[data-v=more]>.profile+.grp{margin-top:0}
 .slist{display:grid;grid-template-columns:1fr 1fr;padding-left:0}
 .slist>*{padding-left:16px}
 .view[data-v=progress]{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
 .view[data-v=progress]>*{margin-top:0;grid-column:span 1}
 .view[data-v=progress]>header,.view[data-v=progress]>.seg,.view[data-v=progress]>.statband,.view[data-v=progress]>.quranbar{grid-column:1/-1}
 .view[data-v=progress]>.quranbar{order:5}
-.view[data-v=more]>.profile{margin-bottom:8px}.view[data-v=more]>.profile+.grp{margin-top:0}
-.view[data-v=surah]{display:grid;grid-template-columns:330px minmax(0,1fr);gap:0 32px;align-items:start}
+.view[data-v=surah]{display:grid;grid-template-columns:360px minmax(0,1fr);gap:0 36px;align-items:start}
 .view[data-v=surah]>.surah-head{position:sticky;top:76px}
+.view[data-v=surah] .ayahs{max-width:940px}
 .ayah .ar{font-size:calc(var(--fs) + 4px)}
 }
+@media (min-width:1280px) and (min-height:560px){
+html{font-size:17px}
+}
 @media (min-width:1440px) and (min-height:560px){
-:root{--rail:236px}
-:root:has(.view[data-v=home]),:root:has(.view[data-v=quran]),:root:has(.view[data-v=listen]),:root:has(.view[data-v=progress]),:root:has(.view[data-v=more]),:root:has(.view[data-v=settings]),:root:has(.view[data-v=account]),:root:has(.view[data-v=surah]){--cw:1180px}
-.nav a{justify-content:flex-start;padding:0 18px}
-.nav a .nl{display:inline}
-.nav a .ni .ic{width:26px;height:26px}
+.view[data-v=more],.view[data-v=settings]{column-count:3}
+.slist{grid-template-columns:repeat(3,1fr)}
+}
+@media (min-width:1700px) and (min-height:560px){
+html{font-size:18px}
 }

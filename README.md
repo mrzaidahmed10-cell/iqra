@@ -137,3 +137,7 @@ Prayer tab redesigned (hero with next prayer + daily progress segments, one clea
 - Left navigation rail (icons at 768px+, icons with labels at 1440px+) replaces the floating bar; the drag/shrink physics are skipped there.
 - Content column widens (700px tablet, 760px default, 1040/1180px for Home, Quran, Listen, Progress, More and Settings) with two-column Home, Quran lists, Progress, More and Settings, and a sticky surah header beside the ayahs.
 - Sheets open as centered dialogs; the mini-player and toasts align to the content area.
+
+## v23: desktop floating nav, fuller screens
+- On wide screens the nav is the same floating glass bar as on phones, standing on the left edge, with a vertical spring pill you can click or drag. It replaces the full-height rail from v22.
+- Content now spans up to 1480px (820px for single-column pages), Quran and More use 3 columns from 1440px, and the base text size steps up at 1280px and 1700px.
